@@ -2241,7 +2241,9 @@ function showSeasonResult() {
     '<div class="big-cname">' + getDisplayName() + '</div>' +
     '<div class="big-pos">' + STATE.season.wins + '胜 ' + STATE.season.losses + '负 · OVR ' + STATE.finalOVR + '</div>' +
     (st.streakType ? '<div class="big-pos" style="font-size:13px;">' + (st.streakType === 'W' ? '🔥 ' + st.streak + ' 连胜' : '❄️ ' + st.streak + ' 连败') + '</div>' : '') +
-    (STATE.season.champion ? '<div class="champ-banner">🏆 总冠军' + (STATE.season.fmvp === STATE.careerTeam ? ' + FMVP！' : '') + '</div>' : '') +
+    (STATE.season.champion === STATE.careerTeam
+      ? '<div class="champ-banner">🏆 总冠军' + (STATE.season.fmvp === STATE.careerTeam ? ' + FMVP！' : '') + '</div>'
+      : (STATE.season.champion ? '<div class="big-pos" style="color:var(--gold);font-size:14px;">🏆 冠军：' + getTeamName(STATE.season.champion) + '</div>' : '')) +
     '</div>' +
     (STATE.season.goal ? '<div class="section-card"><div class="sec-title">🎯 赛季目标</div><div style="font-size:14px;padding:4px 0;">' + STATE.season.goal.label + '：' + (STATE.season.goal.met === true ? '✅ 达成（训练点 +3）' : STATE.season.goal.met === false ? '❌ 未达成（训练点 -1）' : '⏳ 进行中') + '</div></div>' : '') +
     '<div class="section-card"><div class="sec-title">📊 场均数据</div><div class="avg-grid">' +
@@ -3064,7 +3066,9 @@ function generatePoster() {
     '场均 ' + (ps.kills / g).toFixed(1) + '杀 ' + (ps.deaths / g).toFixed(1) + '死 ' + (ps.assists / g).toFixed(1) + '助',
     '场均补刀 ' + Math.round(ps.cs / g) + ' · 伤害 ' + Math.round(ps.dmg / g / 1000) + 'k',
     '战队：' + getTeamName(STATE.careerTeam),
-    STATE.season.champion ? '🏆 总冠军' + (STATE.season.fmvp === STATE.careerTeam ? ' + FMVP' : '') : '继续前行',
+    STATE.season.champion === STATE.careerTeam
+      ? '🏆 总冠军' + (STATE.season.fmvp === STATE.careerTeam ? ' + FMVP' : '')
+      : (STATE.season.champion ? '🏆 冠军：' + getTeamName(STATE.season.champion) : '继续前行'),
   ];
   lines.forEach(function(line, i) {
     ctx.fillText(line, W / 2, 470 + i * 42);

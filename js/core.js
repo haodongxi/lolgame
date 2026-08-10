@@ -36,7 +36,7 @@ const STATE = {
 function createFreshCareer() {
   return {
     seasonCount: 0,
-    currentAge: 18,
+    currentAge: 16,
     seasons: [],
     totalStats: { kills: 0, deaths: 0, assists: 0, cs: 0, dmg: 0, vision: 0, games: 0 },
     honors: [],       // { season, type, label, team }
@@ -201,7 +201,7 @@ function normalizeState() {
   if (c.retired === undefined) c.retired = false;
   if (c.finalSummary === undefined) c.finalSummary = null;
   if (c.seasonCount === undefined) c.seasonCount = 0;
-  if (c.currentAge === undefined) c.currentAge = 18;
+  if (c.currentAge === undefined) c.currentAge = 16;
   if (c.peakOVR === undefined) c.peakOVR = 0;
   // —— season 子对象全面兜底 ——
   const s = STATE.season;
@@ -244,7 +244,7 @@ var _helpPages = [
   { title: '突发事件', content: '赛季中会随机遇到突发事件：伤病、禁赛会让你缺席比赛；手感火热/低迷、版本更新、教练战术会临时改变你的属性；还有绝杀名场面、交易新闻、广告代言、恋情八卦、季后赛压力等几十种故事事件。事件会记录在赛季页的时间线里。' },
   { title: '休赛期', content: '赛季结束后先进入转会窗口：各队会互换替补、官宣引援，你也有可能收到其他战队的报价（打得好更容易被豪门挖角），可以选择留队或转会。之后进入训练营：根据季后赛成绩、个人数据和荣誉获得训练点数，把点数分配到 13 项属性上养成选手。属性越高加点越贵，年轻时还有成长红利，年龄大了身体会自然下滑。' },
   { title: 'My Card', content: '赛季中随时可以打开 My Card 查看本赛季场均数据、季后赛数据、当前属性和生涯影响力（声望/人气/商业价值/年薪）。成就墙记录你达成的各种里程碑，荣誉墙按赛季汇总你的奖杯。' },
-  { title: '退役', content: '年龄增大、状态下滑后，休赛期会触发退役抉择：可以再战一年，也可以正式退役。退役时会生成生涯总结（赛季数、胜场、冠军、荣誉、生涯声望和最终评级），然后可以重开新档。' },
+  { title: '退役', content: '16 岁开启职业生涯。25 岁起每个休赛期都会弹出退役抉择：可以再战一年，也可以正式退役；最晚 27 岁必须退役。退役时会生成生涯总结（赛季数、胜场、冠军、荣誉、生涯声望和最终评级），然后可以重开新档。' },
 ];
 function showHelpModal() {
   _helpPage = 0;
@@ -1836,6 +1836,9 @@ function renderSeasonUI() {
     const st = STATE.season.standings[STATE.careerTeam] || { wins: 0, losses: 0 };
     const ps = STATE.season.stats || {};
     const g = Math.max(1, ps.games || 1);
+    const skipped = (STATE.season.series || []).filter(function(x) { return x.skipReason; }).length;
+    const myW = STATE.season.wins || 0;
+    const myL = STATE.season.losses || 0;
     header.innerHTML = '<div class="sh-top">' +
       '<div class="sh-team"><div class="sh-team-name">' + getTeamName(STATE.careerTeam) + '</div>' +
       '<div class="sh-season">' + getSeasonLabel(STATE.career.seasonCount + 1) + '</div></div>' +
@@ -1843,7 +1846,9 @@ function renderSeasonUI() {
       '<div class="sh-pct">' + (st.wins + st.losses > 0 ? Math.round(st.wins / (st.wins + st.losses) * 100) + '%' : '—') + '</div></div></div>' +
       '<div class="sh-info"><span>' + getPosName(STATE.position) + ' · OVR ' + STATE.finalOVR + '</span>' +
       '<span>场均 ' + (ps.kills / g).toFixed(1) + '杀 ' + (ps.deaths / g).toFixed(1) + '死 ' + (ps.assists / g).toFixed(1) + '助</span>' +
-      '<span>第 ' + (STATE.season.round || 0) + ' 轮</span></div>';
+      '<span>第 ' + (STATE.season.round || 0) + ' 轮</span>' +
+      (skipped > 0 ? '<span style="color:var(--accent);">我出战 ' + (ps.games || 0) + ' 场 · ' + myW + '胜' + myL + '负（缺 ' + skipped + ' 场）</span>' : '') +
+      '</div>';
   }
   renderEventStatus();
   renderEventTimeline();
@@ -2411,7 +2416,13 @@ function getPointCost(val) {
 
 function beginOffseason() {
   updateCareerProfile();
-  if (checkRetirement()) return;
+  const c = STATE.career;
+  // 今年已选过“再战一年”则不再弹退役框（避免同一年循环弹）
+  if (c.flags && c.flags.playOneMoreAge === c.currentAge) {
+    c.flags.playOneMoreAge = null;
+  } else if (checkRetirement()) {
+    return;
+  }
   const changes = applyAnnualAttributeDrift();
   STATE._offseasonDrift = changes;
   renderTrainingCamp();
@@ -2921,15 +2932,19 @@ function checkRetirement() {
   const c = STATE.career;
   if (c.retired) return true;
   const age = c.currentAge;
-  const ovr = STATE.finalOVR || 0;
-  if (age >= 35 || (age >= 32 && ovr <= 60)) {
-    showRetirementChoice();
+  // 25、26 岁每年弹出退役抉择；27 岁起强制退役（不可再延迟）
+  if (age >= 27) {
+    showRetirementChoice(true);
+    return true;
+  }
+  if (age >= 25) {
+    showRetirementChoice(false);
     return true;
   }
   return false;
 }
 
-function showRetirementChoice() {
+function showRetirementChoice(forced) {
   showScreen('screen-retirement');
   const box = document.getElementById('retirement-box');
   if (!box) return;
@@ -2939,13 +2954,13 @@ function showRetirementChoice() {
     '<div style="font-size:13px;color:var(--text-dim);line-height:1.8;margin-top:8px;">' +
     '你已经在这个赛场上奔跑了 ' + (STATE.career.seasonCount + 1) + ' 个赛季。身体开始跟不上意识，训练后的恢复越来越慢。<br><br>是再战一年，还是就此转身？</div></div>' +
     '<div style="text-align:center;padding:12px;display:flex;gap:10px;justify-content:center;">' +
-    '<button class="btn" onclick="playOneMoreSeason()">🔥 再战一年</button>' +
+    (forced ? '' : '<button class="btn" onclick="playOneMoreSeason()">🔥 再战一年</button>') +
     '<button class="btn btn-primary" onclick="retireNow()">🕊️ 退役</button></div>';
 }
 
 function playOneMoreSeason() {
   STATE.career.flags = STATE.career.flags || {};
-  STATE.career.flags.playOneMore = true;
+  STATE.career.flags.playOneMoreAge = STATE.career.currentAge;
   saveGame();
   openTransferWindow();
 }

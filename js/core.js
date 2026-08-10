@@ -1600,7 +1600,7 @@ function simRound(roundNum) {
         g.skipReason = skipReason;
         STATE.season.series.push({ round: roundNum, opp: myOpp, result: result, stats: null, skipReason: skipReason });
       } else {
-        if (result.won) STATE.season.wins++; else STATE.season.losses++;
+        if (result.won === (g.home === STATE.careerTeam)) STATE.season.wins++; else STATE.season.losses++;
         const stats = generatePlayerStats(result, false, myStrategy);
         addStats(STATE.season.stats, stats);
         STATE.season.series.push({ round: roundNum, opp: myOpp, result: result, stats: stats, won: result.won === (g.home === STATE.careerTeam), strategy: myStrategy });
@@ -1919,8 +1919,10 @@ function renderCalendar() {
       if (g.skipReason === 'injury') { cls = 'dot-x'; title = '第' + r + '轮 🏥 伤病休战（点开查看详情）'; }
       else if (g.skipReason === 'suspension') { cls = 'dot-x'; title = '第' + r + '轮 🔇 禁赛（点开查看详情）'; }
       else {
-        cls = g.result.won ? 'dot-w' : 'dot-l';
-        title = '第' + r + '轮 ' + (g.result.won ? '胜' : '负') + ' ' + getTeamName(g.result.won ? g.home : g.away) + ' ' + g.result.score + '（点开查看详情）';
+        const myWon = g.result.won === (g.home === STATE.careerTeam);
+        const winnerTeam = g.result.won ? g.home : g.away;
+        cls = myWon ? 'dot-w' : 'dot-l';
+        title = '第' + r + '轮 ' + (myWon ? '胜' : '负') + ' ' + getTeamName(winnerTeam) + ' ' + g.result.score + '（点开查看详情）';
       }
       if (r === STATE.season.round) cls += ' just';
       html += '<span class="dot ' + cls + '" title="' + title + '" onclick="showSeriesDetail(' + r + ')">' + (g.skipReason ? '✕' : r) + '</span>';

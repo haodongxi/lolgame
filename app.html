@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>完美选手生涯 - 英雄联盟版</title>
+  <style>
+    /* ============================================================
+       完美选手生涯 - 英雄联盟版 UI
+       Created by haodongsheng
+       ============================================================ */
+    :root {
+      --bg: #0b1020;
+      --bg-card: #141a2e;
+      --bg-elevated: #1b2340;
+      --border: #242e4d;
+      --text: #eef1ff;
+      --text-dim: #9aa5c7;
+      --orange: #ff6b35;
+      --accent: #4dd0e1;
+      --gold: #ffd43b;
+      --green: #51cf66;
+      --red: #ff6b6b;
+      --radius: 14px;
+      --radius-sm: 9px;
+      --shadow: 0 4px 20px rgba(0,0,0,0.35);
+      --font-display: 'PingFang SC', 'Helvetica Neue', system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: var(--font-display); }
+    body { overflow-x: hidden; }
+    .screen { display: none; min-height: 100vh; padding: 14px 14px 30px; max-width: 750px; margin: 0 auto; }
+    .screen.active { display: block; }
+
+    .section-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 12px; box-shadow: var(--shadow); }
+    .sec-title { font-size: 14px; font-weight: 700; color: var(--orange); margin-bottom: 10px; letter-spacing: 1px; }
+    .btn { display: inline-block; border: none; border-radius: var(--radius-sm); padding: 11px 18px; font-size: 14px; font-weight: 600; background: var(--bg-elevated); color: var(--text); cursor: pointer; font-family: var(--font-display); }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary { background: linear-gradient(135deg, #ff6b35, #ff9a3d); color: #fff; }
+    .btn-sm { padding: 8px 12px; font-size: 12px; border-radius: 8px; }
+    .btn[disabled] { opacity: 0.35; cursor: not-allowed; }
+
+    /* ---------- 模式选择 ---------- */
+    .hero { text-align: center; padding: 26px 0 18px; }
+    .hero-logo { font-size: 52px; }
+    .hero-title { font-size: 24px; font-weight: 800; letter-spacing: 2px; margin-top: 6px; }
+    .hero-sub { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+    .feature-card { background: var(--bg-card); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 18px; margin-bottom: 14px; position: relative; }
+    .feature-card.selected { border-color: var(--orange); }
+    .feature-card.disabled-card { opacity: 0.5; }
+    .fc-tag { font-size: 10px; font-weight: 800; padding: 3px 9px; border-radius: 999px; letter-spacing: 1px; }
+    .fc-tag.gold { background: rgba(255,212,59,0.15); color: var(--gold); }
+    .fc-tag.new { background: rgba(255,107,53,0.15); color: var(--orange); }
+    .fc-title { font-size: 18px; font-weight: 800; margin: 10px 0 4px; }
+    .fc-sub { font-size: 12px; color: var(--text-dim); margin-bottom: 14px; }
+    .fc-btn { width: 100%; border: none; border-radius: var(--radius-sm); padding: 12px; font-size: 15px; font-weight: 700; background: linear-gradient(135deg, #ff6b35, #ff9a3d); color: #fff; cursor: pointer; font-family: var(--font-display); }
+    .fc-btn:disabled { background: var(--bg-elevated); color: var(--text-dim); cursor: not-allowed; }
+    .menu-bottom { text-align: center; margin-top: 10px; }
+    .link-btn { background: none; border: none; color: var(--accent); font-size: 13px; cursor: pointer; font-family: var(--font-display); }
+
+    /* ---------- 位置选择 ---------- */
+    .page-title { font-size: 18px; font-weight: 800; text-align: center; margin: 16px 0 14px; }
+    .pos-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .pos-grid .pos-card:nth-child(4), .pos-grid .pos-card:nth-child(5) { grid-column: span 1.5; }
+    .pos-card { background: var(--bg-card); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 16px 8px; text-align: center; cursor: pointer; }
+    .pos-card.selected { border-color: var(--orange); background: var(--bg-elevated); }
+    .pos-icon { font-size: 30px; }
+    .pos-label { font-size: 15px; font-weight: 700; margin-top: 6px; }
+    .pos-en { font-size: 11px; color: var(--text-dim); margin-top: 2px; letter-spacing: 1px; }
+
+    /* ---------- 建选手 ---------- */
+    .build-layout { display: flex; gap: 12px; }
+    .build-left { flex: 1.15; min-width: 0; }
+    .build-right { flex: 1; min-width: 0; }
+    .bl-ovr-box { background: var(--bg-card); border: 1.5px solid var(--border); border-radius: var(--radius); text-align: center; padding: 12px; margin-bottom: 10px; }
+    .bl-ovr-label { font-size: 11px; color: var(--text-dim); }
+    .bl-ovr { font-size: 34px; font-weight: 900; color: var(--orange); line-height: 1.1; }
+    .ba-slot { display: flex; align-items: center; justify-content: space-between; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; margin-bottom: 5px; font-size: 12px; min-height: 32px; }
+    .ba-slot.clickable { cursor: pointer; border-color: var(--accent); }
+    .ba-slot.locked { border-color: rgba(81,207,102,0.4); background: rgba(81,207,102,0.06); }
+    .ba-label { color: var(--text-dim); }
+    .ba-grade { font-weight: 800; }
+    .ba-owner { font-size: 10px; color: var(--text-dim); max-width: 42%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+    .ba-empty { color: var(--accent); font-weight: 700; }
+    .build-progress { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+    .progress-bar { flex: 1; height: 8px; background: var(--bg-elevated); border-radius: 999px; overflow: hidden; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, #ff6b35, #ffd43b); border-radius: 999px; transition: width 0.3s; }
+    .progress-text { font-size: 12px; font-weight: 700; color: var(--text-dim); }
+
+    /* 老虎机 */
+    .br-slot-label { font-size: 13px; font-weight: 700; color: var(--orange); margin-bottom: 6px; letter-spacing: 1px; }
+    .br-slot-wrapper { display: flex; justify-content: center; }
+    .br-slot-machine { width: 200px; height: 114px; overflow: hidden; border: 2px solid var(--orange); border-radius: 12px; background: var(--bg-elevated); position: relative; }
+    .br-slot-reel { transition: transform 2.6s cubic-bezier(0.15, 0.85, 0.25, 1); will-change: transform; }
+    .br-slot-item { height: 38px; line-height: 38px; text-align: center; font-size: 15px; font-weight: 700; color: var(--text); border-bottom: 1px solid var(--border); }
+    .br-slot-item.hit { color: var(--gold); background: rgba(255,212,59,0.12); }
+    .br-slot-actions { display: flex; gap: 8px; margin-top: 10px; justify-content: center; }
+    .br-slot-warn { text-align: center; font-size: 11px; color: var(--orange); margin-top: 6px; min-height: 16px; }
+    .br-team-line { display: flex; align-items: center; gap: 8px; padding-bottom: 6px; }
+    .br-team-name { font-size: 15px; font-weight: 800; letter-spacing: 1px; }
+    .br-team-sub { font-size: 11px; color: var(--text-dim); }
+    .br-roster-list { display: flex; flex-direction: column; gap: 6px; }
+    .br-player { display: flex; align-items: center; justify-content: space-between; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; cursor: pointer; }
+    .br-player.selected { border-color: var(--orange); background: var(--bg-elevated); }
+    .bp-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .bp-icon { font-size: 22px; }
+    .bp-name { font-size: 14px; font-weight: 700; }
+    .bp-detail { font-size: 10px; color: var(--text-dim); }
+    .bp-meta .bp-ovr { font-size: 16px; font-weight: 900; color: var(--gold); }
+    .br-tips { display: flex; justify-content: space-between; gap: 6px; padding: 8px 2px 0; font-size: 10px; color: var(--text-dim); }
+    .br-hint { text-align: center; color: var(--red); padding: 14px; font-size: 13px; }
+
+    /* ---------- 揭幕 ---------- */
+    .reveal-card { background: var(--bg-card); border: 2px solid var(--orange); border-radius: var(--radius); text-align: center; padding: 22px 14px; margin-bottom: 12px; }
+    .reveal-label { font-size: 12px; color: var(--text-dim); letter-spacing: 2px; }
+    .big-cname { font-size: 26px; font-weight: 900; margin: 6px 0; }
+    .big-ovr { font-size: 74px; font-weight: 900; color: var(--orange); line-height: 1; margin: 4px 0; }
+    .big-pos { font-size: 14px; color: var(--text-dim); }
+    .reveal-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
+    .reveal-stat { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; text-align: center; padding: 7px 2px; }
+    .reveal-stat .label { font-size: 10px; color: var(--text-dim); }
+    .reveal-stat .value { font-size: 16px; font-weight: 900; }
+    .rv-arch { font-size: 18px; font-weight: 800; text-align: center; color: var(--gold); padding: 6px; }
+    .rv-sim-row { display: flex; align-items: center; gap: 8px; padding: 6px 4px; border-bottom: 1px solid var(--border-light, var(--border)); }
+    .rv-sim-icon { font-size: 18px; }
+    .rv-sim-name { flex: 1; font-weight: 600; }
+    .rv-sim-ovr { color: var(--gold); font-weight: 700; }
+
+    /* ---------- 生涯/阵容 ---------- */
+    .career-wrap { display: flex; flex-direction: column; align-items: center; }
+    .roster-sec-title { font-size: 12px; color: var(--orange); margin: 4px 0 8px; }
+    .roster-row { display: flex; align-items: center; gap: 8px; padding: 7px 4px; border-bottom: 1px solid var(--border); font-size: 13px; }
+    .roster-row.me { background: rgba(255,107,53,0.1); border-radius: 8px; border: 1px solid var(--orange); }
+    .rr-icon { font-size: 17px; }
+    .rr-pos { width: 34px; color: var(--text-dim); font-size: 11px; }
+    .rr-name { flex: 1; font-weight: 600; }
+    .rr-ovr { font-weight: 800; color: var(--gold); }
+    .team-picker-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 6px 14px 16px; }
+    .team-pick-card { background: var(--bg-card); border: 1.5px solid var(--border); border-radius: 10px; padding: 12px; text-align: center; cursor: pointer; }
+    .tpc-logo { font-size: 24px; }
+    .tpc-name { display: block; margin-top: 4px; font-weight: 700; font-size: 13px; }
+
+    /* ---------- 赛季 ---------- */
+    .sh-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .sh-team-name { font-size: 18px; font-weight: 900; }
+    .sh-season { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+    .sh-record { text-align: right; }
+    .sh-wins { color: var(--green); font-size: 20px; font-weight: 900; }
+    .sh-dash { color: var(--text-dim); }
+    .sh-losses { color: var(--red); font-size: 20px; font-weight: 900; }
+    .sh-pct { font-size: 11px; color: var(--text-dim); }
+    .sh-info { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim); margin-bottom: 10px; flex-wrap: wrap; gap: 4px; }
+    .dot-grid { display: flex; flex-wrap: wrap; gap: 5px; margin: 10px 0; }
+    .dot { width: 30px; height: 30px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; cursor: pointer; background: var(--bg-elevated); color: var(--text-dim); }
+    .dot-w { background: rgba(81,207,102,0.2); color: var(--green); }
+    .dot-l { background: rgba(255,107,107,0.2); color: var(--red); }
+    .dot-next { border: 1.5px dashed var(--orange); color: var(--orange); }
+    .dot.just { animation: popIn .4s ease; }
+    @keyframes popIn { 0% { transform: scale(0.4); opacity: 0.2; } 70% { transform: scale(1.15); } 100% { transform: scale(1); opacity: 1; } }
+    .sim-last-card { margin: 6px 0; padding: 8px 12px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; text-align: center; }
+    .sim-last-card.sim-win { background: rgba(81,207,102,0.14); border: 1px solid rgba(81,207,102,0.45); color: var(--green); }
+    .sim-last-card.sim-loss { background: rgba(255,107,107,0.14); border: 1px solid rgba(255,107,107,0.45); color: #ffb3b3; }
+    .sim-last-card.sim-skip { background: rgba(255,212,59,0.12); border: 1px solid rgba(255,212,59,0.4); color: var(--gold); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .st-hdr, .st-row { display: grid; grid-template-columns: 26px 1fr 36px 36px 52px; gap: 4px; align-items: center; font-size: 12px; padding: 5px 4px; }
+    .st-hdr { color: var(--text-dim); border-bottom: 1px solid var(--border); }
+    .st-row { border-bottom: 1px solid rgba(36,46,77,0.4); }
+    .st-row.st-my { background: rgba(255,107,53,0.08); border-radius: 6px; }
+    .st-w { color: var(--green); font-weight: 700; }
+    .st-l { color: var(--red); font-weight: 700; }
+    .st-streak { color: var(--text-dim); font-size: 11px; }
+
+    /* ---------- 奖项 ---------- */
+    .award-card { display: flex; align-items: center; gap: 10px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 12px; margin-bottom: 8px; }
+    .award-card.won { border-color: var(--gold); background: rgba(255,212,59,0.06); }
+    .award-badge { font-size: 24px; }
+    .award-info { flex: 1; }
+    .award-label { font-size: 11px; color: var(--text-dim); }
+    .award-winner { font-size: 15px; font-weight: 700; }
+    .award-tag { font-size: 10px; color: var(--gold); border: 1px solid var(--gold); border-radius: 999px; padding: 2px 8px; }
+
+    /* ---------- 季后赛 ---------- */
+    .po-round-title { font-size: 12px; color: var(--accent); font-weight: 700; margin: 10px 0 6px; letter-spacing: 1px; }
+    .po-match { display: flex; align-items: center; justify-content: space-between; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; margin-bottom: 6px; font-size: 13px; }
+    .po-match.po-mine { border-color: var(--orange); background: rgba(255,107,53,0.07); }
+    .po-match.po-final { border-color: var(--gold); }
+    .po-score { color: var(--text-dim); font-weight: 700; }
+    .po-games { display: flex; gap: 5px; margin-top: 6px; }
+    .po-game { width: 26px; height: 26px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; background: var(--bg-elevated); color: var(--text-dim); }
+    .po-game.won { background: rgba(81,207,102,0.2); color: var(--green); }
+    .po-result { font-size: 16px; font-weight: 800; margin-top: 4px; }
+    .po-stats { font-size: 11px; color: var(--text-dim); margin-top: 6px; }
+    .champ-banner { text-align: center; font-size: 16px; font-weight: 900; color: var(--gold); padding: 12px; }
+
+    /* ---------- 总结 / 生涯 ---------- */
+    .avg-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .avg-item { text-align: center; background: var(--bg-elevated); border-radius: 8px; padding: 8px 4px; }
+    .avg-item b { display: block; font-size: 18px; color: var(--gold); }
+    .avg-item span { font-size: 10px; color: var(--text-dim); }
+    .honor-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+    .honor-chip { font-size: 11px; background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text); border-radius: 999px; padding: 4px 10px; }
+    .cs-line { font-size: 13px; padding: 4px 0; color: var(--text-dim); }
+    .cs-attr { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; }
+    .cs-attr span { width: 34px; color: var(--text-dim); }
+    .cs-bar { flex: 1; height: 7px; background: var(--bg-elevated); border-radius: 999px; overflow: hidden; }
+    .cs-bar div { height: 100%; border-radius: 999px; }
+    .cs-attr b { width: 30px; text-align: right; }
+
+    /* ---------- 弹窗 ---------- */
+    .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.65); display: flex; align-items: center; justify-content: center; z-index: 99; }
+    .modal { width: 88%; max-width: 420px; max-height: 82vh; overflow-y: auto; background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; }
+    .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border); font-weight: 700; }
+    .modal-close { background: none; border: none; color: var(--text-dim); font-size: 16px; cursor: pointer; }
+    .modal-sub { padding: 8px 16px 4px; font-size: 11px; color: var(--text-dim); }
+    #helpModal .modal { max-width: 480px; }
+    .help-tabs { display: flex; gap: 6px; padding: 10px 14px 0; flex-wrap: wrap; }
+    .help-tabs button { background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-dim); border-radius: 999px; padding: 5px 12px; font-size: 11px; cursor: pointer; font-family: var(--font-display); }
+    .help-tabs button.active { color: var(--orange); border-color: var(--orange); }
+    #helpBody { padding: 12px 16px; color: var(--text); }
+    .help-nav { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px 14px; }
+    .help-nav span { color: var(--text-dim); font-size: 12px; }
+
+    /* ---------- 突发事件 ---------- */
+    #event-status { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; padding: 4px 0 8px; }
+    .ev-badge { display: inline-block; font-size: 10px; padding: 4px 9px; border-radius: 999px; background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text); }
+    .ev-badge.ev-bad { border-color: var(--red); color: #ffb3b3; }
+    .ev-badge.ev-none { color: var(--text-dim); }
+    .ev-conseq { display: block; text-align: center; font-size: 12px; font-weight: 700; color: var(--orange); margin: 10px 0 6px; }
+    .ev-timeline { display: flex; flex-direction: column; gap: 8px; }
+    .ev-item { display: flex; gap: 8px; align-items: flex-start; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; }
+    .ev-dot { font-size: 16px; }
+    .ev-item-title { font-size: 12px; font-weight: 700; }
+    .ev-item-meta { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+    .modal-body { padding: 12px 16px; font-size: 13px; line-height: 1.7; color: var(--text); white-space: pre-wrap; }
+    .modal-footer { padding: 10px 16px 14px; text-align: center; }
+    .strat-options { display: grid; gap: 8px; padding: 4px 0; }
+    .strat-opt { text-align: left; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; cursor: pointer; font-family: var(--font-display); }
+    .strat-opt:hover { border-color: var(--orange); }
+    .strat-opt b { display: block; font-size: 14px; color: var(--text); margin-bottom: 2px; }
+    .strat-opt span { font-size: 11px; color: var(--text-dim); }
+    .ev-choices { display: grid; gap: 8px; text-align: left; }
+
+    /* ---------- 比赛详情 ---------- */
+    .sd-scoreline { text-align: center; font-size: 16px; font-weight: 700; color: var(--gold); margin: 4px 0 10px; }
+    .sd-scoreline b { font-size: 22px; color: var(--orange); margin: 0 6px; }
+    .sd-games { display: flex; flex-direction: column; gap: 8px; }
+    .sd-game { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; background: var(--bg-elevated); }
+    .sd-game.sd-hot { border-color: var(--orange); }
+    .sd-game-head { font-size: 12px; font-weight: 700; color: var(--text); }
+    .sd-kills, .sd-gold { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+    .sd-events { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+    .sd-events span { font-size: 10px; padding: 3px 7px; border-radius: 999px; background: rgba(255,107,53,0.12); color: #ffb38a; border: 1px solid rgba(255,107,53,0.35); }
+    .sd-mystats { margin-top: 10px; font-size: 12px; color: var(--accent); text-align: center; }
+
+    /* ---------- 训练营 ---------- */
+    .tp-header { display: flex; align-items: baseline; justify-content: center; gap: 10px; margin: 6px 0 2px; }
+    .tp-section-title { font-size: 13px; font-weight: 700; color: var(--orange); margin: 10px 0 2px; }
+    #tp-points { font-size: 22px; font-weight: 800; color: var(--gold); font-family: var(--font-display); }
+    .tp-age-info { text-align: center; font-size: 12px; color: var(--text-dim); margin-bottom: 12px; }
+    .tp-drift-title { font-size: 12px; font-weight: 700; color: var(--orange); margin-bottom: 6px; }
+    .tp-drift-list { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 12px; }
+    .tp-drift-list span { font-size: 10px; padding: 3px 8px; border-radius: 999px; background: var(--bg-elevated); border: 1px solid var(--border); }
+    .tp-attrs { display: flex; flex-direction: column; gap: 7px; margin-top: 10px; }
+    .tp-row { display: flex; align-items: center; gap: 8px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 10px; }
+    .tp-row.tp-added { border-color: var(--accent); }
+    .tp-label { width: 34px; font-size: 12px; font-weight: 700; }
+    .tp-bar-wrap { flex: 1; position: relative; height: 10px; background: rgba(255,255,255,0.08); border-radius: 999px; overflow: hidden; }
+    .tp-bar-fill { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, var(--accent), #6dd5ed); border-radius: 999px; }
+    .tp-bar-add { position: absolute; top: 0; bottom: 0; background: var(--gold); opacity: 0.85; }
+    .tp-val { min-width: 46px; font-size: 12px; font-weight: 700; text-align: right; }
+    .tp-val.tp-preview { color: var(--gold); }
+    .tp-grade { min-width: 34px; font-size: 11px; text-align: center; }
+    .tp-btn { width: 28px; height: 28px; border-radius: 8px; border: none; background: var(--orange); color: #fff; font-size: 16px; font-weight: 700; cursor: pointer; }
+    .tp-btn:disabled { background: var(--bg-elevated); color: var(--text-dim); border: 1px solid var(--border); }
+    .tp-actions { display: flex; justify-content: center; gap: 10px; margin-top: 14px; }
+    .tp-breakdown { text-align: center; font-size: 11px; color: var(--text-dim); margin: 8px 0; }
+
+    /* ---------- 转会窗口 ---------- */
+    .offer-card { border-color: rgba(255,107,53,0.55); background: linear-gradient(160deg, rgba(255,107,53,0.08), var(--bg-card)); }
+    .offer-card .sec-title { color: var(--gold); }
+
+    /* ---------- My Card / 成就 / 荣誉 / 阵容预览 / 退役 ---------- */
+    .mc-team { text-align: center; font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+    .mc-attrs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+    .mc-attr { display: flex; justify-content: space-between; align-items: center; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 10px; font-size: 12px; }
+    .profile-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .profile-item { text-align: center; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 4px; }
+    .profile-item b { display: block; font-size: 16px; color: var(--gold); }
+    .profile-item span { font-size: 10px; color: var(--text-dim); }
+    .ach-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .ach-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px; text-align: center; opacity: 0.55; }
+    .ach-card.ach-got { border-color: var(--gold); opacity: 1; }
+    .ach-emoji { font-size: 22px; }
+    .ach-label { font-size: 13px; font-weight: 700; margin-top: 4px; }
+    .ach-desc { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+    .ach-season { font-size: 10px; color: var(--orange); margin-top: 4px; }
+    .honor-season { margin-bottom: 12px; }
+    .honor-season-title { font-size: 13px; font-weight: 700; color: var(--orange); margin-bottom: 6px; }
+    .honor-summary { font-size: 12px; color: var(--accent); margin-top: 10px; }
+    .best-series { font-size: 12px; color: var(--text); line-height: 1.7; }
+    .ret-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+    .ret-stat { text-align: center; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 4px; }
+    .ret-stat b { display: block; font-size: 20px; color: var(--gold); }
+    .ret-stat span { font-size: 10px; color: var(--text-dim); }
+    #ach-toast { position: fixed; top: 18px; left: 50%; transform: translateX(-50%) translateY(-160%); display: flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #1b2340, #2a1b3d); border: 1px solid var(--gold); border-radius: 12px; padding: 10px 16px; z-index: 999; transition: transform .35s ease; max-width: 86vw; box-shadow: var(--shadow); }
+    #ach-toast.show { transform: translateX(-50%) translateY(0); }
+    .ach-toast-icon { font-size: 22px; }
+    .ach-toast-title { font-size: 13px; font-weight: 700; color: var(--gold); }
+    .ach-toast-desc { font-size: 11px; color: var(--text-dim); }
+
+    /* ---------- 测试用一键满配 ---------- */
+    .dev-btn { border: 1.5px dashed #b18cff !important; color: #c9b3ff !important; background: rgba(177,140,255,0.08) !important; font-size: 11px !important; }
+    .dev-btn:hover { background: rgba(177,140,255,0.18) !important; }
+  </style>
+</head>
+<body>
+
+  <!-- 模式选择 -->
+  <div id="screen-menu" class="screen">
+    <div class="hero">
+      <div class="hero-logo">🏆</div>
+      <div class="hero-title">完美选手生涯</div>
+      <div class="hero-sub">召唤师峡谷生涯模拟 · 非官方玩家自制</div>
+    </div>
+    <div id="feature-grid"></div>
+    <div class="section-card" style="text-align:center;">
+      <button id="continue-btn" class="btn btn-primary" style="display:none;width:100%;" onclick="continueCareer()">▶ 继续上次生涯</button>
+    </div>
+    <div class="menu-bottom">
+      <button class="link-btn" onclick="showHelpModal()">📖 玩法说明</button>
+    </div>
+  </div>
+
+  <!-- 位置选择 -->
+  <div id="screen-position" class="screen">
+    <div class="page-title">选择我的位置</div>
+    <div class="pos-grid" id="pos-grid"></div>
+    <div style="text-align:center;margin-top:16px;">
+      <button class="btn btn-primary" style="width:80%;" onclick="confirmPosition()">确认位置</button>
+    </div>
+  </div>
+
+  <!-- 建选手 -->
+  <div id="screen-build" class="screen">
+    <div class="page-title" id="build-pos-indicator"></div>
+    <div id="build-progress-area"></div>
+    <div style="text-align:center;margin:6px 0 2px;">
+      <button class="btn btn-sm dev-btn" onclick="quickFillBuild()">⚡ 一键满配（测试用，上线前删）</button>
+    </div>
+    <div class="build-layout">
+      <div class="build-left">
+        <div class="bl-ovr-box"><div class="bl-ovr-label">总评 OVR</div><div class="bl-ovr" id="bl-ovr">--</div></div>
+        <div id="bl-attrs"></div>
+      </div>
+      <div class="build-right">
+        <div class="section-card" id="br-slot-area"></div>
+        <div class="section-card" id="br-roster-area"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 揭幕 -->
+  <div id="screen-reveal" class="screen">
+    <div class="page-title">🎉 揭幕</div>
+    <div id="reveal-content"></div>
+    <div style="text-align:center;margin:14px 0;">
+      <button class="btn btn-primary" style="width:80%;" onclick="goToCareer()">开始生涯</button>
+    </div>
+  </div>
+
+  <!-- 生涯战队 -->
+  <div id="screen-career" class="screen">
+    <div class="page-title">决定我的命运</div>
+    <div id="career-area"></div>
+  </div>
+
+  <!-- 赛季 -->
+  <div id="screen-season" class="screen">
+    <div class="section-card">
+      <div id="season-header"></div>
+      <div id="event-status"></div>
+      <div class="dot-grid" id="simDotGrid"></div>
+      <div id="sim-last"></div>
+      <div id="simStatus" style="text-align:center;font-size:12px;color:var(--text-dim);padding:6px 0;"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:6px;">
+        <button class="btn btn-primary btn-sm" onclick="simNextRound()">▶ 模拟下一轮</button>
+        <button class="btn btn-sm" id="sim-all-btn" onclick="simAllRounds()">⏩ 自动模拟</button>
+        <button class="btn btn-sm" id="awards-btn" onclick="showAwardsScreen()">📊 奖项</button>
+        <button class="btn btn-sm" id="po-btn" onclick="goToPlayoffs()">🎯 季后赛</button>
+        <button class="btn btn-sm" onclick="showCareerStats()">📋 生涯数据</button>
+        <button class="btn btn-sm" onclick="showMyCard()">📊 My Card</button>
+      </div>
+    </div>
+    <div class="section-card" id="standings-box"></div>
+    <div class="section-card" id="event-timeline-box"></div>
+  </div>
+
+  <!-- 奖项 -->
+  <div id="screen-awards" class="screen">
+    <div class="page-title">📊 常规赛奖项</div>
+    <div id="awards-box"></div>
+    <div style="text-align:center;margin:14px 0;">
+      <button class="btn btn-primary" id="awards-action-btn" style="width:80%;" onclick="goToPlayoffs()">🎯 进入季后赛</button>
+    </div>
+  </div>
+
+  <!-- 季后赛 -->
+  <div id="screen-playoffs" class="screen">
+    <div class="page-title">🏀 季后赛</div>
+    <div class="section-card" id="playoff-box"></div>
+    <div class="section-card" id="playoff-actions"></div>
+    <div class="section-card" id="playoff-detail"></div>
+  </div>
+
+  <!-- 赛季总结 -->
+  <div id="screen-result" class="screen">
+    <div class="page-title">📊 赛季总结</div>
+    <div id="result-box"></div>
+  </div>
+
+  <!-- 转会窗口 -->
+  <div id="screen-transfer" class="screen">
+    <div class="page-title">🔄 休赛期转会窗口</div>
+    <div id="transfer-box"></div>
+  </div>
+
+  <!-- 休赛期训练营 -->
+  <div id="screen-training" class="screen">
+    <div class="page-title">🏋️ 休赛期训练营</div>
+    <div id="training-sub" style="text-align:center;font-size:12px;color:var(--text-dim);margin-bottom:6px;"></div>
+    <div class="section-card">
+      <div class="tp-header"><span id="tp-points">0 / 0 训练点数</span></div>
+      <div id="training-drift"></div>
+      <div class="tp-section-title">📈 分配属性点（属性越高，每点越贵）</div>
+      <div class="tp-attrs" id="tp-attrs"></div>
+      <div class="tp-actions">
+        <button class="btn btn-sm" onclick="resetTraining()">🔄 重置</button>
+        <button class="btn btn-primary btn-sm" onclick="confirmTraining()">✅ 确认加点，进入新赛季</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 生涯数据 -->
+  <div id="screen-career-stats" class="screen">
+    <div class="page-title">📋 生涯数据</div>
+    <div id="career-stats-box"></div>
+  </div>
+
+  <!-- My Card -->
+  <div id="screen-mycard" class="screen">
+    <div class="page-title">📊 My Card</div>
+    <div id="mycard-content"></div>
+  </div>
+
+  <!-- 成就墙 -->
+  <div id="screen-achievements" class="screen">
+    <div class="page-title">🏅 成就墙</div>
+    <div id="ach-content"></div>
+  </div>
+
+  <!-- 荣誉墙 -->
+  <div id="screen-career-honors" class="screen">
+    <div class="page-title">🏆 荣誉墙</div>
+    <div id="honors-content"></div>
+  </div>
+
+  <!-- 阵容预览 -->
+  <div id="screen-roster-review" class="screen">
+    <div class="page-title">⚔️ 新赛季阵容</div>
+    <div id="roster-review-content"></div>
+  </div>
+
+  <!-- 退役 -->
+  <div id="screen-retirement" class="screen">
+    <div class="page-title">🕊️ 生涯抉择</div>
+    <div id="retirement-box"></div>
+  </div>
+
+  <!-- 成就解锁弹窗 -->
+  <div id="ach-toast"></div>
+
+  <!-- 玩法说明 -->
+  <div id="helpModal" class="overlay" style="display:none;">
+    <div class="modal">
+      <div class="modal-header"><span>📖 玩法说明</span><button class="modal-close" onclick="closeHelpModal()">✕</button></div>
+      <div class="help-tabs" id="helpTabs">
+        <button onclick="helpGoTo(0)">建选手</button>
+        <button onclick="helpGoTo(1)">常规赛</button>
+        <button onclick="helpGoTo(2)">奖项</button>
+        <button onclick="helpGoTo(3)">季后赛</button>
+        <button onclick="helpGoTo(4)">突发事件</button>
+        <button onclick="helpGoTo(5)">休赛期</button>
+        <button onclick="helpGoTo(6)">My Card</button>
+        <button onclick="helpGoTo(7)">退役</button>
+      </div>
+      <div id="helpBody"></div>
+      <div class="help-nav">
+        <button class="btn btn-sm" id="helpPrevBtn" onclick="helpPrevPage()">上一页</button>
+        <span id="helpPageIndicator"></span>
+        <button class="btn btn-sm" id="helpNextBtn" onclick="helpNextPage()">下一页</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 突发事件弹窗 -->
+  <div id="event-modal" class="overlay" style="display:none;">
+    <div class="modal">
+      <div class="modal-header"><span id="event-modal-title">事件</span><button class="modal-close" onclick="closeEventModal()">✕</button></div>
+      <div class="modal-body" id="event-modal-body"></div>
+      <div class="modal-footer" id="event-modal-footer"><button class="btn btn-primary btn-sm" onclick="closeEventModal()">知道了</button></div>
+    </div>
+  </div>
+
+  <!-- 赛前战术选择 -->
+  <div id="strategy-modal" class="overlay" style="display:none;">
+    <div class="modal">
+      <div class="modal-header"><span>🎯 赛前战术</span><button class="modal-close" onclick="chooseStrategy('auto')">✕</button></div>
+      <div class="modal-body">
+        <div id="strategy-modal-sub" style="color:var(--text-dim);font-size:12px;margin-bottom:8px;"></div>
+        <div class="strat-options">
+          <button class="strat-opt" onclick="chooseStrategy('stable')"><b>🛡️ 稳健运营</b><span>稳扎稳打：少送人头、稳住对线，克制同水平对手（击杀略降、死亡大幅下降）</span></button>
+          <button class="strat-opt" onclick="chooseStrategy('aggressive')"><b>⚔️ 激进进攻</b><span>高风险高回报：压制对手拿击杀，但更容易被抓（击杀大增、死亡增加，打强队有奇效）</span></button>
+          <button class="strat-opt" onclick="chooseStrategy('scale')"><b>🌱 发育后期</b><span>拖后期：疯狂补刀发育，装备成型后接管比赛（补刀大增、前期击杀偏少）</span></button>
+          <button class="strat-opt" onclick="chooseStrategy('auto')"><b>⚙️ 自动选择</b><span>交给教练组决定（随机一种战术）</span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 系列赛详情弹窗 -->
+  <div id="series-modal" class="overlay" style="display:none;">
+    <div class="modal">
+      <div class="modal-header"><span>📋 系列赛详情</span><button class="modal-close" onclick="closeSeriesModal()">✕</button></div>
+      <div class="modal-body" id="series-modal-body"></div>
+    </div>
+  </div>
+
+  <script src="./js/sim_config.js"></script>
+  <script src="./js/players.js"></script>
+  <script src="./js/teams.js"></script>
+  <script src="./js/core.js"></script>
+</body>
+</html>

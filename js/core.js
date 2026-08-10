@@ -643,26 +643,6 @@ function lockAttr(key) {
   }, 600);
 }
 
-/** 测试用：一键生成 13 项属性并直接揭幕（上线前删除） */
-function quickFillBuild() {
-  if (STATE.mode !== 'current' || !STATE.position) return;
-  if (STATE.lockedCount >= 13 || STATE.finalOVR > 0) return;
-  const pos = STATE.position;
-  const base = SIM_CONFIG.POS_AVG[pos] || {};
-  ATTR_KEYS.forEach(function(k) {
-    const val = Math.max(45, Math.min(95, Math.round((base[k] || 70) + Math.random() * 24 - 12)));
-    STATE.attrs[k] = val;
-    STATE.attrSlots[k] = { champ: '⚡ 测试生成', team: STATE.currentTeam || '', value: val, raw: val, penalty: 1 };
-  });
-  STATE.lockedCount = 13;
-  STATE.selectedChamp = null;
-  STATE._mustLockAfterSpin = false;
-  renderLeftAttrs();
-  renderProgress();
-  revealPlayer();
-  saveGame();
-}
-
 // ==================== 4. 相似选手匹配 ====================
 const POS_GROUP = {
   TOP: ['TOP'],

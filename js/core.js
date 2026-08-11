@@ -546,29 +546,6 @@ function renderProgress() {
     '<div class="progress-text">' + STATE.lockedCount + '/13</div></div>';
 }
 
-/** 测试用：一键填满 13 项能力并直接揭幕（位置相关能力给高值，无关能力给中低值） */
-function testFillAllAttrs() {
-  if (STATE._locking || !STATE.position) return;
-  if (STATE.lockedCount >= 13) return;
-  const w = SIM_CONFIG.OVR_WEIGHTS[STATE.position] || {};
-  ATTR_KEYS.forEach(function(k) {
-    if (STATE.attrs[k] !== null && STATE.attrs[k] !== undefined) return;
-    const relevant = (w[k] || 0) > 0;
-    const val = relevant
-      ? 88 + Math.floor(Math.random() * 11)      // 位置相关：88-98
-      : 55 + Math.floor(Math.random() * 16);     // 位置无关：55-70
-    STATE.attrs[k] = val;
-    STATE.attrSlots[k] = { champ: '🧪测试', team: STATE.currentTeam || '', value: val, raw: val, penalty: 1.0 };
-    STATE.lockedCount++;
-  });
-  saveGame();
-  renderLeftAttrs();
-  renderProgress();
-  if (STATE.lockedCount >= 13) {
-    setTimeout(function() { revealPlayer(); }, 400);
-  }
-}
-
 function renderLeftAttrs() {
   const ovrEl = document.getElementById('bl-ovr');
   if (ovrEl) {

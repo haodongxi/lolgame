@@ -35,7 +35,7 @@ async function main() {
   await evaljs('localStorage.clear(); location.reload();');
   await sleep(2500);
   console.log('probe:', JSON.stringify(await evaljs('1 + 1')));
-  await evaljs("(function(){ initGame(); STATE.position='MID'; STATE.finalOVR=85; STATE.careerTeam='TES'; ['LANE','MECH','TEAM','DPS','BURST','TANK','CC','ROAM','VISION','FARM','MOB','CLU','SPLIT'].forEach(function(k){STATE.attrs[k]=85;}); startSeason(); })()");
+  await evaljs("(function(){ initGame(); STATE.position='MID'; STATE.finalOVR=85; STATE.careerTeam='TES'; ['TANK','FIGHTER','AD_ASN','AP_ASN','MAGE','MARK','ENGAGE','ENCH','LANE','MECH','TEAM','ROAM','CLU'].forEach(function(k){STATE.attrs[k]=85;}); startSeason(); })()");
   await sleep(200);
   await evaljs('simAllRounds()');
   await sleep(15000);

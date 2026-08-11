@@ -5,12 +5,12 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const files = ['js/sim_config.js', 'js/players.js', 'js/teams.js', 'js/core.js'];
+const files = ['js/sim_config.js', 'js/players.js', 'js/heroes.js', 'js/teams.js', 'js/core.js'];
 let src = files.map(function(f) {
   return fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 }).join('\n;\n');
 // 暴露内部状态供测试读取
-src += '\n;\nglobalThis.__T = {\n  getState: function(){ return STATE; },\n  buildSchedule: buildLoLSchedule,\n  teamPlayers: getTeamPlayers,\n  teamPower: calcTeamPower,\n  simSeries: simulateSeries,\n  genStats: generatePlayerStats,\n  awards: calcAwards,\n  initPO: initPlayoffs,\n  simPORound: simPlayoffRound,\n  nextSeason: startNextSeason,\n  simRound: simRound,\n  endRS: endRegularSeason,\n};';
+src += '\n;\nglobalThis.__T = {\n  getState: function(){ return STATE; },\n  config: SIM_CONFIG,\n  buildSchedule: buildLoLSchedule,\n  teamPlayers: getTeamPlayers,\n  teamPower: calcTeamPower,\n  simSeries: simulateSeries,\n  genStats: generatePlayerStats,\n  awards: calcAwards,\n  initPO: initPlayoffs,\n  simPORound: simPlayoffRound,\n  nextSeason: startNextSeason,\n  simRound: simRound,\n  endRS: endRegularSeason,\n};';
 
 const localStorage = (function() {
   const m = {};
@@ -68,14 +68,24 @@ function check(name, cond, extra) {
 
 // 1. 数据完整性
 const sched = T.buildSchedule();
-check('赛程共182场（14队双循环）', sched.length === 182, sched.length);
+check('赛程共273场（14队三循环）', sched.length === 273, sched.length);
 const perTeam = {};
 sched.forEach(function(g) {
   perTeam[g.home] = (perTeam[g.home] || 0) + 1;
   perTeam[g.away] = (perTeam[g.away] || 0) + 1;
 });
-check('每队26场', Object.keys(perTeam).length === 14 && Object.values(perTeam).every(function(v) { return v === 26; }), perTeam);
+check('每队39场', Object.keys(perTeam).length === 14 && Object.values(perTeam).every(function(v) { return v === 39; }), perTeam);
 check('每队≥5名选手且首发5人', SIM_CONFIG_TEAM_COUNT());
+
+// 1.5 权重完整性：显式 0 权重不算缺失，各位置总评权重合计必须为 1（总评上限 99）
+const weightSums = {};
+T.config.POS_LIST.forEach(function(pos) {
+  const w = T.config.OVR_WEIGHTS[pos];
+  let s = 0;
+  T.config.ATTR_LIST.forEach(function(k) { s += k in w ? w[k] : 0.07; });
+  weightSums[pos] = s;
+});
+check('各位置OVR权重合计=1', Object.keys(weightSums).every(function(pos) { return Math.abs(weightSums[pos] - 1) < 0.0001; }), weightSums);
 
 function SIM_CONFIG_TEAM_COUNT() {
   const teams = ['AL', 'BLG', 'EDG', 'IG', 'JDG', 'LGD', 'LNG', 'NIP', 'OMG', 'TES', 'TT', 'UP', 'WBG', 'WE'];
@@ -95,7 +105,7 @@ st.position = 'MID';
 st.careerTeam = 'JDG';
 st.finalOVR = 88;
 st.finalPosition = 'MID';
-st.attrs = { LANE: 85, MECH: 92, TEAM: 80, DPS: 86, BURST: 90, TANK: 38, CC: 70, ROAM: 82, VISION: 60, FARM: 82, MOB: 88, CLU: 90, SPLIT: 42 };
+st.attrs = { TANK: 40, FIGHTER: 55, AD_ASN: 90, AP_ASN: 92, MAGE: 88, MARK: 80, ENGAGE: 45, ENCH: 40, LANE: 85, MECH: 92, TEAM: 80, ROAM: 82, CLU: 90 };
 const powA = T.teamPower('JDG');
 const powB = T.teamPower('BLG');
 check('战队实力为数值', [powA.offense, powA.defense, powA.macro, powA.clutch, powA.overall].every(function(v) { return typeof v === 'number' && v > 0; }), powA);
@@ -122,15 +132,15 @@ const sts = {};
 sim.season.standings = sts;
 ['AL','BLG','EDG','IG','JDG','LGD','LNG','NIP','OMG','TES','TT','UP','WBG','WE'].forEach(function(t) { sts[t] = { wins: 0, losses: 0, streak: 0, streakType: null }; });
 
-for (let r = 1; r <= 26; r++) {
+for (let r = 1; r <= 39; r++) {
   T.simRound(r);
 }
 const s1 = T.getState().season;
-check('常规赛打完26轮', s1.round === 26, s1.round);
-check('我的战绩+缺阵合计26场', (s1.wins + s1.losses + s1.series.filter(function(s) { return s.skipReason; }).length) === 26, s1.wins + 'W-' + s1.losses + 'L+缺阵' + s1.series.filter(function(s) { return s.skipReason; }).length);
+check('常规赛打完39轮', s1.round === 39, s1.round);
+check('我的战绩+缺阵合计39场', (s1.wins + s1.losses + s1.series.filter(function(s) { return s.skipReason; }).length) === 39, s1.wins + 'W-' + s1.losses + 'L+缺阵' + s1.series.filter(function(s) { return s.skipReason; }).length);
 let totalGames = 0;
 Object.values(s1.standings).forEach(function(x) { totalGames += x.wins + x.losses; });
-check('积分榜共364场', totalGames === 364, totalGames);
+check('积分榜共546场', totalGames === 546, totalGames);
 
 // 4. 奖项
 T.awards();

@@ -13,6 +13,35 @@ const ATTR_LIST = SIM_CONFIG.ATTR_LIST;
 const OVR_WEIGHTS = SIM_CONFIG.OVR_WEIGHTS;
 const POS_AVG = SIM_CONFIG.POS_AVG;
 
+// 旧版属性映射到新版前，先用旧版位置均值归一化
+const OLD_POS_AVG = {
+  TOP: { LANE: 85, MECH: 75, TEAM: 72, DPS: 70, BURST: 65, TANK: 85, CC: 70, ROAM: 55, VISION: 50, FARM: 80, MOB: 60, CLU: 75, SPLIT: 85 },
+  JG:  { LANE: 60, MECH: 80, TEAM: 78, DPS: 65, BURST: 75, TANK: 65, CC: 80, ROAM: 92, VISION: 80, FARM: 65, MOB: 88, CLU: 78, SPLIT: 55 },
+  MID: { LANE: 82, MECH: 90, TEAM: 75, DPS: 85, BURST: 88, TANK: 40, CC: 72, ROAM: 82, VISION: 60, FARM: 82, MOB: 85, CLU: 88, SPLIT: 55 },
+  ADC: { LANE: 80, MECH: 82, TEAM: 85, DPS: 95, BURST: 80, TANK: 30, CC: 45, ROAM: 45, VISION: 50, FARM: 92, MOB: 78, CLU: 85, SPLIT: 50 },
+  SUP: { LANE: 72, MECH: 75, TEAM: 88, DPS: 45, BURST: 55, TANK: 70, CC: 90, ROAM: 80, VISION: 95, FARM: 45, MOB: 72, CLU: 80, SPLIT: 35 },
+};
+
+// 旧版 13 项属性 → 新版 8 精通 + 5 个人能力的映射
+function mapToNewAttrs(o) {
+  const clamp = function(v) { return Math.max(25, Math.min(99, Math.round(v))); };
+  return {
+    TANK:   clamp(o.TANK * 0.55 + o.CC * 0.25 + o.TEAM * 0.20),
+    FIGHTER: clamp(o.TANK * 0.35 + o.DPS * 0.25 + o.MECH * 0.20 + o.SPLIT * 0.20),
+    AD_ASN: clamp(o.BURST * 0.45 + o.MECH * 0.25 + o.MOB * 0.20 + o.DPS * 0.10),
+    AP_ASN: clamp(o.BURST * 0.35 + o.DPS * 0.20 + o.MECH * 0.20 + o.MOB * 0.15 + o.FARM * 0.10),
+    MAGE:   clamp(o.DPS * 0.35 + o.BURST * 0.20 + o.FARM * 0.20 + o.MECH * 0.15 + o.LANE * 0.10),
+    MARK:   clamp(o.DPS * 0.40 + o.FARM * 0.20 + o.MECH * 0.20 + o.MOB * 0.10 + o.LANE * 0.10),
+    ENGAGE: clamp(o.CC * 0.40 + o.TANK * 0.20 + o.TEAM * 0.20 + o.ROAM * 0.20),
+    ENCH:   clamp(o.VISION * 0.35 + o.TEAM * 0.30 + o.CC * 0.20 + o.LANE * 0.15),
+    LANE:   clamp(o.LANE),
+    MECH:   clamp(o.MECH),
+    TEAM:   clamp(o.TEAM),
+    ROAM:   clamp(o.ROAM),
+    CLU:    clamp(o.CLU),
+  };
+}
+
 // 2026 LPL 14 队首发（Split 1 实际出场阵容）
 const ROSTER = {
   AL:   { TOP: 'Flandre', JG: 'Tarzan', MID: 'Shanks', ADC: 'Hope', SUP: 'Kael' },
@@ -114,38 +143,39 @@ function buildPlayer(id, pos, byName, raw) {
   if (!p) throw new Error('未找到选手统计: ' + id);
   const r = raw[pos];
   const invDeath = 1 / (p.deaths + 1);
-  const attrs = {
-    LANE:   makeAttr(POS_AVG[pos].LANE,   r.cs,   p.csPerMinute) * 0.6 +
-            makeAttr(POS_AVG[pos].LANE,   r.kda,  p.kda) * 0.4,
-    MECH:   makeAttr(POS_AVG[pos].MECH,   r.rating, p.rftRating) * 0.5 +
-            makeAttr(POS_AVG[pos].MECH,   r.kills, p.kills) * 0.3 +
-            makeAttr(POS_AVG[pos].MECH,   r.dpm,  p.damagePerMinute) * 0.2,
-    TEAM:   makeAttr(POS_AVG[pos].TEAM,   r.kp,   p.killParticipation) * 0.4 +
-            makeAttr(POS_AVG[pos].TEAM,   r.wr,   p.winRate) * 0.3 +
-            makeAttr(POS_AVG[pos].TEAM,   r.assists, p.assists) * 0.3,
-    DPS:    makeAttr(POS_AVG[pos].DPS,    r.dpm,  p.damagePerMinute),
-    BURST:  makeAttr(POS_AVG[pos].BURST,  r.kills, p.kills) * 0.6 +
-            makeAttr(POS_AVG[pos].BURST,  r.dpm,  p.damagePerMinute) * 0.4,
-    TANK:   makeAttr(POS_AVG[pos].TANK,   r.invDeath, invDeath) * 0.6 +
-            makeAttr(POS_AVG[pos].TANK,   r.wr,   p.winRate) * 0.4,
-    CC:     makeAttr(POS_AVG[pos].CC,     r.assists, p.assists) * 0.7 +
-            makeAttr(POS_AVG[pos].CC,     r.kp,   p.killParticipation) * 0.3,
-    ROAM:   makeAttr(POS_AVG[pos].ROAM,   r.kp,   p.killParticipation) * 0.5 +
-            makeAttr(POS_AVG[pos].ROAM,   r.assists, p.assists) * 0.5,
-    VISION: makeAttr(POS_AVG[pos].VISION, r.assists, p.assists) * 0.6 +
-            makeAttr(POS_AVG[pos].VISION, r.kp,   p.killParticipation) * 0.4,
-    FARM:   makeAttr(POS_AVG[pos].FARM,   r.cs,   p.csPerMinute),
-    MOB:    makeAttr(POS_AVG[pos].MOB,    r.kills, p.kills) * 0.5 +
-            makeAttr(POS_AVG[pos].MOB,    r.invDeath, invDeath) * 0.5,
-    CLU:    makeAttr(POS_AVG[pos].CLU,    r.rating, p.rftRating) * 0.5 +
-            makeAttr(POS_AVG[pos].CLU,    r.kda,  p.kda) * 0.2 +
-            makeAttr(POS_AVG[pos].CLU,    r.wr,   p.winRate) * 0.3,
-    SPLIT:  makeAttr(POS_AVG[pos].SPLIT,  r.cs,   p.csPerMinute) * 0.6 +
-            makeAttr(POS_AVG[pos].SPLIT,  r.kills, p.kills) * 0.4,
+  const oldAttrs = {
+    LANE:   makeAttr(OLD_POS_AVG[pos].LANE,   r.cs,   p.csPerMinute) * 0.6 +
+            makeAttr(OLD_POS_AVG[pos].LANE,   r.kda,  p.kda) * 0.4,
+    MECH:   makeAttr(OLD_POS_AVG[pos].MECH,   r.rating, p.rftRating) * 0.5 +
+            makeAttr(OLD_POS_AVG[pos].MECH,   r.kills, p.kills) * 0.3 +
+            makeAttr(OLD_POS_AVG[pos].MECH,   r.dpm,  p.damagePerMinute) * 0.2,
+    TEAM:   makeAttr(OLD_POS_AVG[pos].TEAM,   r.kp,   p.killParticipation) * 0.4 +
+            makeAttr(OLD_POS_AVG[pos].TEAM,   r.wr,   p.winRate) * 0.3 +
+            makeAttr(OLD_POS_AVG[pos].TEAM,   r.assists, p.assists) * 0.3,
+    DPS:    makeAttr(OLD_POS_AVG[pos].DPS,    r.dpm,  p.damagePerMinute),
+    BURST:  makeAttr(OLD_POS_AVG[pos].BURST,  r.kills, p.kills) * 0.6 +
+            makeAttr(OLD_POS_AVG[pos].BURST,  r.dpm,  p.damagePerMinute) * 0.4,
+    TANK:   makeAttr(OLD_POS_AVG[pos].TANK,   r.invDeath, invDeath) * 0.6 +
+            makeAttr(OLD_POS_AVG[pos].TANK,   r.wr,   p.winRate) * 0.4,
+    CC:     makeAttr(OLD_POS_AVG[pos].CC,     r.assists, p.assists) * 0.7 +
+            makeAttr(OLD_POS_AVG[pos].CC,     r.kp,   p.killParticipation) * 0.3,
+    ROAM:   makeAttr(OLD_POS_AVG[pos].ROAM,   r.kp,   p.killParticipation) * 0.5 +
+            makeAttr(OLD_POS_AVG[pos].ROAM,   r.assists, p.assists) * 0.5,
+    VISION: makeAttr(OLD_POS_AVG[pos].VISION, r.assists, p.assists) * 0.6 +
+            makeAttr(OLD_POS_AVG[pos].VISION, r.kp,   p.killParticipation) * 0.4,
+    FARM:   makeAttr(OLD_POS_AVG[pos].FARM,   r.cs,   p.csPerMinute),
+    MOB:    makeAttr(OLD_POS_AVG[pos].MOB,    r.kills, p.kills) * 0.5 +
+            makeAttr(OLD_POS_AVG[pos].MOB,    r.invDeath, invDeath) * 0.5,
+    CLU:    makeAttr(OLD_POS_AVG[pos].CLU,    r.rating, p.rftRating) * 0.5 +
+            makeAttr(OLD_POS_AVG[pos].CLU,    r.kda,  p.kda) * 0.2 +
+            makeAttr(OLD_POS_AVG[pos].CLU,    r.wr,   p.winRate) * 0.3,
+    SPLIT:  makeAttr(OLD_POS_AVG[pos].SPLIT,  r.cs,   p.csPerMinute) * 0.6 +
+            makeAttr(OLD_POS_AVG[pos].SPLIT,  r.kills, p.kills) * 0.4,
   };
+  const attrs = mapToNewAttrs(oldAttrs);
   ATTR_LIST.forEach(function(k) { attrs[k] = clamp(attrs[k], 25, 99); });
   let ovr = 0;
-  ATTR_LIST.forEach(function(k) { ovr += attrs[k] * (OVR_WEIGHTS[pos][k] || 0.07); });
+  ATTR_LIST.forEach(function(k) { ovr += attrs[k] * (k in OVR_WEIGHTS[pos] ? OVR_WEIGHTS[pos][k] : 0.07); });
   const anchored = ovr * 0.7 + (50 + p.rftRating * 0.55) * 0.3;
   return { id: id, pos: pos, t: TAGS[id] || '职业选手', ovr: Math.round(anchored), attrs: attrs, raw: p };
 }
@@ -166,7 +196,7 @@ const lines = [];
 lines.push('/* ============================================================');
 lines.push('   选手数据：2026 LPL 14 支战队阵容（Split 1 首发 + Split 2 替补）');
 lines.push('   数据源: rft.gg LPL 2026 Split 1 / Split 2 选手统计');
-lines.push('   （KDA/DPM/CSM/参团率/胜率/综合评分，属性按位置归一化生成）');
+lines.push('   （KDA/DPM/CSM/参团率/胜率/综合评分，属性按位置归一化后映射为 8 精通 + 5 个人能力）');
 lines.push('   Created by haodongsheng');
 lines.push('   ============================================================ */');
 lines.push('const PLAYERS = [');

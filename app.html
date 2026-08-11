@@ -240,9 +240,21 @@
     .strat-opt span { font-size: 11px; color: var(--text-dim); }
     .ev-choices { display: grid; gap: 8px; text-align: left; }
 
+    /* ---------- 本场英雄选择 ---------- */
+    .draft-hero-list { display: grid; gap: 8px; }
+    .draft-hero { display: flex; align-items: center; gap: 10px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; cursor: pointer; }
+    .draft-hero:hover { border-color: var(--orange); }
+    .draft-hero.dh-auto { justify-content: center; border-style: dashed; }
+    .dh-icon { font-size: 22px; width: 30px; text-align: center; }
+    .dh-body { flex: 1; min-width: 0; }
+    .dh-name { font-size: 15px; font-weight: 700; color: var(--text); }
+    .dh-cls { font-size: 11px; color: var(--text-dim); }
+    .dh-fit { font-size: 12px; color: var(--text); white-space: nowrap; }
+
     /* ---------- 比赛详情 ---------- */
     .sd-scoreline { text-align: center; font-size: 16px; font-weight: 700; color: var(--gold); margin: 4px 0 10px; }
     .sd-scoreline b { font-size: 22px; color: var(--orange); margin: 0 6px; }
+    .sd-draft { font-size: 12px; color: var(--accent); text-align: center; margin-bottom: 8px; font-weight: 700; }
     .sd-games { display: flex; flex-direction: column; gap: 8px; }
     .sd-game { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; background: var(--bg-elevated); }
     .sd-game.sd-hot { border-color: var(--orange); }
@@ -341,6 +353,9 @@
   <div id="screen-build" class="screen">
     <div class="page-title" id="build-pos-indicator"></div>
     <div id="build-progress-area"></div>
+    <div style="text-align:center;margin-bottom:8px;">
+      <button class="btn btn-sm" onclick="testFillAllAttrs()" title="测试用：一键填满 13 项能力并直接揭幕" style="border-color:var(--orange);color:var(--orange);">🧪 一键填充能力（测试）</button>
+    </div>
     <div class="build-layout">
       <div class="build-left">
         <div class="bl-ovr-box"><div class="bl-ovr-label">总评 OVR</div><div class="bl-ovr" id="bl-ovr">--</div></div>
@@ -521,6 +536,19 @@
     </div>
   </div>
 
+  <!-- 赛前英雄选择（本场发牌） -->
+  <div id="draft-modal" class="overlay" style="display:none;">
+    <div class="modal">
+      <div class="modal-header"><span>🎯 本场英雄选择</span><button class="modal-close" onclick="chooseDraftHero('')">✕</button></div>
+      <div class="modal-body">
+        <div id="draft-modal-sub" style="color:var(--text-dim);font-size:12px;margin-bottom:6px;"></div>
+        <div id="draft-banned" style="color:var(--orange);font-size:12px;font-weight:700;margin-bottom:8px;"></div>
+        <div id="draft-hero-list" class="draft-hero-list"></div>
+        <div style="color:var(--text-dim);font-size:11px;margin-top:8px;line-height:1.7;">战力 = 类别精通 × 55% + 英雄强度 × 25% + 个人能力 × 20%，同位置对位比较，另有类别克制加成。</div>
+      </div>
+    </div>
+  </div>
+
   <!-- 系列赛详情弹窗 -->
   <div id="series-modal" class="overlay" style="display:none;">
     <div class="modal">
@@ -531,6 +559,7 @@
 
   <script src="./js/sim_config.js"></script>
   <script src="./js/players.js"></script>
+  <script src="./js/heroes.js"></script>
   <script src="./js/teams.js"></script>
   <script src="./js/core.js"></script>
 </body>

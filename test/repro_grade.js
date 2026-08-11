@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const files = ['js/sim_config.js', 'js/players.js', 'js/teams.js', 'js/core.js'];
+const files = ['js/sim_config.js', 'js/players.js', 'js/heroes.js', 'js/teams.js', 'js/core.js'];
 let src = files.map(function(f) {
   return fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 }).join('\n;\n');

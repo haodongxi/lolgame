@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const files = ['js/sim_config.js', 'js/players.js', 'js/teams.js', 'js/core.js'];
+const files = ['js/sim_config.js', 'js/players.js', 'js/heroes.js', 'js/teams.js', 'js/core.js'];
 let src = files.map(function(f) {
   return fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 }).join('\n;\n');
@@ -70,7 +70,7 @@ sim.position = 'MID';
 sim.careerTeam = 'WBG';
 sim.finalOVR = 88;
 sim.finalPosition = 'MID';
-sim.attrs = { LANE: 85, MECH: 92, TEAM: 80, DPS: 86, BURST: 90, TANK: 38, CC: 70, ROAM: 82, VISION: 60, FARM: 82, MOB: 88, CLU: 90, SPLIT: 42 };
+sim.attrs = { TANK: 40, FIGHTER: 55, AD_ASN: 90, AP_ASN: 92, MAGE: 88, MARK: 80, ENGAGE: 45, ENCH: 40, LANE: 85, MECH: 92, TEAM: 80, ROAM: 82, CLU: 90 };
 sim.career = { seasonCount: 0, currentAge: 16, seasons: [], totalStats: { kills: 0, deaths: 0, assists: 0, cs: 0, dmg: 0, vision: 0, games: 0 }, honors: [], championships: [], seasonHistory: [], achievements: [], profile: { fame: 0, popularity: 0, businessValue: 0, legacy: 0 }, retired: false, finalSummary: null, transferHistory: [], rosterOverride: null };
 sim.season = { round: 0, wins: 0, losses: 0, series: [], stats: { kills: 0, deaths: 0, assists: 0, cs: 0, dmg: 0, vision: 0, games: 0 }, playoffStats: { kills: 0, deaths: 0, assists: 0, cs: 0, dmg: 0, vision: 0, games: 0 }, bestSeries: null, standings: {}, schedule: [], isPlayoffs: false, playoffBracket: null, playoffResult: null, awards: [], champion: null, fmvp: null, events: { storyTimeline: [], injuryGamesLeft: 0, suspensionGamesLeft: 0, injuryReason: null, suspensionReason: null, lastTriggerGameNum: null, playoffEventCount: 0 } };
 

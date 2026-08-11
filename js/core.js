@@ -110,6 +110,10 @@ function attrCN(key) { return SIM_CONFIG.ATTR_CN[key] || key; }
 function attrDesc(key) { return SIM_CONFIG.ATTR_DESC[key] || ''; }
 function getGrade(val) { return SIM_CONFIG.GRADE.getGrade(val); }
 function getOvrGrade(ovr) { return SIM_CONFIG.GRADE.getOvrGrade(ovr); }
+/** 取位置权重：显式配置的 0 表示“该能力与此位置无关”，只有完全没配置的键才用默认 0.07 */
+function attrWeight(weights, key) {
+  return (weights && key in weights) ? weights[key] : 0.07;
+}
 function getMainPos(ch) {
   const pos = String(ch.pos || 'MID').split('/')[0].trim();
   return SIM_CONFIG.POS_LIST.indexOf(pos) >= 0 ? pos : 'MID';
@@ -551,7 +555,7 @@ function renderLeftAttrs() {
       let lockedSum = 0, lockedWeight = 0;
       ATTR_KEYS.forEach(function(k) {
         const val = STATE.attrs[k];
-        const weight = w[k] || 0.07;
+        const weight = attrWeight(w, k);
         if (val !== null) { lockedSum += val * weight; lockedWeight += weight; }
       });
       if (lockedWeight > 0) {
@@ -559,7 +563,7 @@ function renderLeftAttrs() {
         let c = 0;
         ATTR_KEYS.forEach(function(k) {
           const val = STATE.attrs[k] !== null ? STATE.attrs[k] : Math.round(fillAvg);
-          c += val * (w[k] || 0.07);
+          c += val * attrWeight(w, k);
         });
         ovr = Math.round(c);
       }
@@ -864,7 +868,7 @@ function findTieredPlayers(attrs, pos) {
 function revealPlayer() {
   const weights = SIM_CONFIG.OVR_WEIGHTS[STATE.position];
   let ovr = 0;
-  ATTR_KEYS.forEach(function(k) { ovr += (STATE.attrs[k] || 50) * (weights[k] || 0.07); });
+  ATTR_KEYS.forEach(function(k) { ovr += (STATE.attrs[k] || 50) * attrWeight(weights, k); });
   STATE.finalOVR = Math.round(ovr);
   STATE.finalPosition = STATE.position;
   const best = matchSimilarPlayers(STATE.attrs, STATE.position, 1)[0];
@@ -2642,7 +2646,7 @@ function applyAnnualAttributeDrift() {
 function calcOVRFromAttrs() {
   const weights = SIM_CONFIG.OVR_WEIGHTS[STATE.position] || {};
   let ovr = 0;
-  ATTR_KEYS.forEach(function(k) { ovr += (STATE.attrs[k] || 50) * (weights[k] || 0.07); });
+  ATTR_KEYS.forEach(function(k) { ovr += (STATE.attrs[k] || 50) * attrWeight(weights, k); });
   return Math.round(ovr);
 }
 

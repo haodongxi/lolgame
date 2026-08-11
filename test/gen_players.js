@@ -175,7 +175,7 @@ function buildPlayer(id, pos, byName, raw) {
   const attrs = mapToNewAttrs(oldAttrs);
   ATTR_LIST.forEach(function(k) { attrs[k] = clamp(attrs[k], 25, 99); });
   let ovr = 0;
-  ATTR_LIST.forEach(function(k) { ovr += attrs[k] * (OVR_WEIGHTS[pos][k] || 0.07); });
+  ATTR_LIST.forEach(function(k) { ovr += attrs[k] * (k in OVR_WEIGHTS[pos] ? OVR_WEIGHTS[pos][k] : 0.07); });
   const anchored = ovr * 0.7 + (50 + p.rftRating * 0.55) * 0.3;
   return { id: id, pos: pos, t: TAGS[id] || '职业选手', ovr: Math.round(anchored), attrs: attrs, raw: p };
 }

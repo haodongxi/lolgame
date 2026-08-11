@@ -10,7 +10,7 @@ let src = files.map(function(f) {
   return fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 }).join('\n;\n');
 // 暴露内部状态供测试读取
-src += '\n;\nglobalThis.__T = {\n  getState: function(){ return STATE; },\n  buildSchedule: buildLoLSchedule,\n  teamPlayers: getTeamPlayers,\n  teamPower: calcTeamPower,\n  simSeries: simulateSeries,\n  genStats: generatePlayerStats,\n  awards: calcAwards,\n  initPO: initPlayoffs,\n  simPORound: simPlayoffRound,\n  nextSeason: startNextSeason,\n  simRound: simRound,\n  endRS: endRegularSeason,\n};';
+src += '\n;\nglobalThis.__T = {\n  getState: function(){ return STATE; },\n  config: SIM_CONFIG,\n  buildSchedule: buildLoLSchedule,\n  teamPlayers: getTeamPlayers,\n  teamPower: calcTeamPower,\n  simSeries: simulateSeries,\n  genStats: generatePlayerStats,\n  awards: calcAwards,\n  initPO: initPlayoffs,\n  simPORound: simPlayoffRound,\n  nextSeason: startNextSeason,\n  simRound: simRound,\n  endRS: endRegularSeason,\n};';
 
 const localStorage = (function() {
   const m = {};
@@ -76,6 +76,16 @@ sched.forEach(function(g) {
 });
 check('每队39场', Object.keys(perTeam).length === 14 && Object.values(perTeam).every(function(v) { return v === 39; }), perTeam);
 check('每队≥5名选手且首发5人', SIM_CONFIG_TEAM_COUNT());
+
+// 1.5 权重完整性：显式 0 权重不算缺失，各位置总评权重合计必须为 1（总评上限 99）
+const weightSums = {};
+T.config.POS_LIST.forEach(function(pos) {
+  const w = T.config.OVR_WEIGHTS[pos];
+  let s = 0;
+  T.config.ATTR_LIST.forEach(function(k) { s += k in w ? w[k] : 0.07; });
+  weightSums[pos] = s;
+});
+check('各位置OVR权重合计=1', Object.keys(weightSums).every(function(pos) { return Math.abs(weightSums[pos] - 1) < 0.0001; }), weightSums);
 
 function SIM_CONFIG_TEAM_COUNT() {
   const teams = ['AL', 'BLG', 'EDG', 'IG', 'JDG', 'LGD', 'LNG', 'NIP', 'OMG', 'TES', 'TT', 'UP', 'WBG', 'WE'];

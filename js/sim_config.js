@@ -1,6 +1,7 @@
 /* ============================================================
    完美选手生涯 - 模拟配置模块
    所有可调参数集中在此，方便调整游戏平衡
+   属性体系：8 类英雄精通 + 5 项个人能力（共 13 项）
    Created by haodongsheng
    ============================================================ */
 const SIM_CONFIG = {
@@ -12,30 +13,71 @@ const SIM_CONFIG = {
     ATTR_MAX: 99,
   },
 
+  // 每局发牌：每位置刷出 6 个在场英雄，随机禁用 1 个，剩余 5 个供双方选择
+  DRAFT: {
+    HEROES_PER_POS: 10,  // 英雄池每位置英雄数（共 50）
+    DEAL_PER_POS: 6,     // 每位置随机刷出的在场英雄
+    BAN_PER_POS: 1,      // 每位置随机禁用数（共 5 ban）
+    PICK_PER_POS: 1,     // 每位置双方各选 1 个
+  },
+
   // 各位置属性平均值（用于跨位置衰减）
   // 衰减系数 = min(1.0, 你的位置该属性均值 / 来源位置该属性均值)
   POS_AVG: {
-    TOP: { LANE: 85, MECH: 75, TEAM: 72, DPS: 70, BURST: 65, TANK: 85, CC: 70, ROAM: 55, VISION: 50, FARM: 80, MOB: 60, CLU: 75, SPLIT: 85 },
-    JG:  { LANE: 60, MECH: 80, TEAM: 78, DPS: 65, BURST: 75, TANK: 65, CC: 80, ROAM: 92, VISION: 80, FARM: 65, MOB: 88, CLU: 78, SPLIT: 55 },
-    MID: { LANE: 82, MECH: 90, TEAM: 75, DPS: 85, BURST: 88, TANK: 40, CC: 72, ROAM: 82, VISION: 60, FARM: 82, MOB: 85, CLU: 88, SPLIT: 55 },
-    ADC: { LANE: 80, MECH: 82, TEAM: 85, DPS: 95, BURST: 80, TANK: 30, CC: 45, ROAM: 45, VISION: 50, FARM: 92, MOB: 78, CLU: 85, SPLIT: 50 },
-    SUP: { LANE: 72, MECH: 75, TEAM: 88, DPS: 45, BURST: 55, TANK: 70, CC: 90, ROAM: 80, VISION: 95, FARM: 45, MOB: 72, CLU: 80, SPLIT: 35 },
+    TOP: { TANK: 79, FIGHTER: 80, AD_ASN: 68, AP_ASN: 69, MAGE: 74, MARK: 74, ENGAGE: 70, ENCH: 66, LANE: 85, MECH: 75, TEAM: 72, ROAM: 55, CLU: 75 },
+    JG:  { TANK: 72, FIGHTER: 66, AD_ASN: 79, AP_ASN: 76, MAGE: 69, MARK: 70, ENGAGE: 79, ENCH: 77, LANE: 60, MECH: 81, TEAM: 79, ROAM: 93, CLU: 78 },
+    MID: { TANK: 54, FIGHTER: 63, AD_ASN: 87, AP_ASN: 86, MAGE: 85, MARK: 84, ENGAGE: 68, ENCH: 70, LANE: 81, MECH: 89, TEAM: 75, ROAM: 82, CLU: 87 },
+    ADC: { TANK: 45, FIGHTER: 61, AD_ASN: 82, AP_ASN: 84, MAGE: 88, MARK: 88, ENGAGE: 50, ENCH: 64, LANE: 80, MECH: 83, TEAM: 85, ROAM: 45, CLU: 85 },
+    SUP: { TANK: 78, FIGHTER: 57, AD_ASN: 62, AP_ASN: 59, MAGE: 54, MARK: 56, ENGAGE: 83, ENCH: 88, LANE: 71, MECH: 75, TEAM: 88, ROAM: 80, CLU: 79 },
   },
 
   ATTR_CN: {
-    LANE: '对线', MECH: '操作', TEAM: '团战', DPS: '输出', BURST: '爆发',
-    TANK: '坦度', CC: '控制', ROAM: '游走', VISION: '视野', FARM: '补刀',
-    MOB: '机动', CLU: '关键', SPLIT: '带线',
+    TANK: '坦克精通', FIGHTER: '战士精通', AD_ASN: '物理刺客', AP_ASN: '法术刺客',
+    MAGE: '法师精通', MARK: '射手精通', ENGAGE: '开团硬辅', ENCH: '保护软辅',
+    LANE: '对线', MECH: '操作', TEAM: '团战', ROAM: '游走', CLU: '心态',
   },
 
   ATTR_DESC: {
-    LANE: '对线压制与换血能力', MECH: '极限操作与微操', TEAM: '团战走位与作用',
-    DPS: '持续输出能力', BURST: '爆发秒人能力', TANK: '承伤与抗压',
-    CC: '控制技能命中率', ROAM: '游走支援频率', VISION: '视野布控',
-    FARM: '补刀与发育', MOB: '机动性与位移', CLU: '关键局大心脏', SPLIT: '单带牵扯',
+    TANK: '坦克英雄熟练度：前排承伤与开团',
+    FIGHTER: '战士英雄熟练度：近战对拼与单带',
+    AD_ASN: '物理刺客熟练度：切入爆发与收割',
+    AP_ASN: '法术刺客熟练度：AP 爆发与机动切入',
+    MAGE: '法师英雄熟练度：远程炮台与团战输出',
+    MARK: '射手英雄熟练度：持续输出与打前排',
+    ENGAGE: '开团型辅助熟练度：先手控制与进场',
+    ENCH: '保护型辅助熟练度：护盾治疗与保排',
+    LANE: '对线压制、换血与补刀发育',
+    MECH: '极限操作与微操',
+    TEAM: '团战走位与作用',
+    ROAM: '游走支援频率与视野意识',
+    CLU: '关键局心态与发挥',
   },
 
-  ATTR_LIST: ['LANE','MECH','TEAM','DPS','BURST','TANK','CC','ROAM','VISION','FARM','MOB','CLU','SPLIT'],
+  // 13 项能力：前 8 项为英雄类别精通，后 5 项为个人能力
+  ATTR_LIST: ['TANK','FIGHTER','AD_ASN','AP_ASN','MAGE','MARK','ENGAGE','ENCH','LANE','MECH','TEAM','ROAM','CLU'],
+  MASTERY_KEYS: ['TANK','FIGHTER','AD_ASN','AP_ASN','MAGE','MARK','ENGAGE','ENCH'],
+  PERSONAL_KEYS: ['LANE','MECH','TEAM','ROAM','CLU'],
+
+  CLS_CN: {
+    TANK: '坦克', FIGHTER: '战士', AD_ASN: '物理刺客', AP_ASN: '法术刺客',
+    MAGE: '法师', MARK: '射手', ENGAGE: '开团硬辅', ENCH: '保护软辅',
+  },
+  CLS_ICON: {
+    TANK: '🛡️', FIGHTER: '⚔️', AD_ASN: '🗡️', AP_ASN: '✨',
+    MAGE: '🔮', MARK: '🏹', ENGAGE: '⛓️', ENCH: '💚',
+  },
+
+  // 类别克制：A 克制 B 时，对位战力 +4（刺客克后排、坦克克刺客……）
+  CLS_COUNTER: {
+    TANK:    ['AD_ASN', 'AP_ASN'],
+    FIGHTER: ['TANK', 'MARK'],
+    AD_ASN:  ['MAGE', 'MARK'],
+    AP_ASN:  ['MAGE', 'MARK'],
+    MAGE:    ['FIGHTER', 'ENGAGE'],
+    MARK:    ['TANK', 'FIGHTER'],
+    ENGAGE:  ['MAGE', 'ENCH'],
+    ENCH:    ['AD_ASN', 'AP_ASN'],
+  },
 
   GRADE: {
     getGrade(val) {
@@ -66,12 +108,13 @@ const SIM_CONFIG = {
   POS_LIST: ['TOP', 'JG', 'MID', 'ADC', 'SUP'],
   POS_ICONS: { TOP: '🛡️', JG: '🗡️', MID: '⭐', ADC: '🎯', SUP: '🛟' },
 
+  // 总评权重：精通决定你能把哪类英雄玩好，个人能力决定下限
   OVR_WEIGHTS: {
-    TOP: { LANE: 0.12, MECH: 0.08, TEAM: 0.08, DPS: 0.06, BURST: 0.04, TANK: 0.14, CC: 0.06, ROAM: 0.04, VISION: 0.04, FARM: 0.08, MOB: 0.06, CLU: 0.08, SPLIT: 0.12 },
-    JG:  { LANE: 0.04, MECH: 0.10, TEAM: 0.10, DPS: 0.06, BURST: 0.08, TANK: 0.08, CC: 0.12, ROAM: 0.14, VISION: 0.10, FARM: 0.04, MOB: 0.10, CLU: 0.08, SPLIT: 0.02 },
-    MID: { LANE: 0.10, MECH: 0.14, TEAM: 0.08, DPS: 0.12, BURST: 0.12, TANK: 0.02, CC: 0.06, ROAM: 0.08, VISION: 0.04, FARM: 0.06, MOB: 0.08, CLU: 0.10, SPLIT: 0.02 },
-    ADC: { LANE: 0.08, MECH: 0.10, TEAM: 0.10, DPS: 0.18, BURST: 0.10, TANK: 0.02, CC: 0.04, ROAM: 0.02, VISION: 0.04, FARM: 0.12, MOB: 0.08, CLU: 0.10, SPLIT: 0.02 },
-    SUP: { LANE: 0.06, MECH: 0.08, TEAM: 0.14, DPS: 0.02, BURST: 0.04, TANK: 0.10, CC: 0.16, ROAM: 0.10, VISION: 0.16, FARM: 0.02, MOB: 0.06, CLU: 0.10, SPLIT: 0.02 },
+    TOP: { TANK: 0.15, FIGHTER: 0.15, AD_ASN: 0, AP_ASN: 0, MAGE: 0.02, MARK: 0, ENGAGE: 0.02, ENCH: 0, LANE: 0.20, MECH: 0.13, TEAM: 0.13, ROAM: 0.07, CLU: 0.13 },
+    JG:  { TANK: 0.06, FIGHTER: 0.08, AD_ASN: 0.14, AP_ASN: 0.12, MAGE: 0.03, MARK: 0.02, ENGAGE: 0.10, ENCH: 0, LANE: 0, MECH: 0.12, TEAM: 0.08, ROAM: 0.18, CLU: 0.07 },
+    MID: { TANK: 0.03, FIGHTER: 0.03, AD_ASN: 0.09, AP_ASN: 0.16, MAGE: 0.17, MARK: 0, ENGAGE: 0, ENCH: 0, LANE: 0.14, MECH: 0.14, TEAM: 0.06, ROAM: 0.08, CLU: 0.10 },
+    ADC: { TANK: 0, FIGHTER: 0, AD_ASN: 0.02, AP_ASN: 0.02, MAGE: 0.02, MARK: 0.30, ENGAGE: 0, ENCH: 0, LANE: 0.20, MECH: 0.14, TEAM: 0.12, ROAM: 0.04, CLU: 0.14 },
+    SUP: { TANK: 0.04, FIGHTER: 0, AD_ASN: 0.03, AP_ASN: 0, MAGE: 0.03, MARK: 0, ENGAGE: 0.20, ENCH: 0.16, LANE: 0.06, MECH: 0.06, TEAM: 0.16, ROAM: 0.14, CLU: 0.12 },
   },
 
   SEASON: {
@@ -80,12 +123,12 @@ const SIM_CONFIG = {
     SERIES_WIN_REQUIRED: 3, // 季后赛 BO5
   },
 
-  // 战队实力维度
+  // 战队实力维度：由“英雄类别精通 × 本局英雄”融合后的属性向量计算
   TEAM_POWER: {
-    offense:  { DPS: 0.20, BURST: 0.15, LANE: 0.15, FARM: 0.10, MECH: 0.15, TEAM: 0.15, MOB: 0.10 },
-    defense:  { TANK: 0.25, CC: 0.20, VISION: 0.20, TEAM: 0.20, MOB: 0.15 },
-    macro:    { ROAM: 0.25, VISION: 0.25, SPLIT: 0.15, TEAM: 0.20, CLU: 0.15 },
-    clutch:   { CLU: 0.40, BURST: 0.20, MECH: 0.20, TEAM: 0.20 },
+    offense:  { AD_ASN: 0.12, AP_ASN: 0.12, MAGE: 0.10, MARK: 0.14, FIGHTER: 0.06, LANE: 0.12, MECH: 0.16, TEAM: 0.08, ROAM: 0.06, TANK: 0.02, ENGAGE: 0.02 },
+    defense:  { TANK: 0.22, ENGAGE: 0.14, ENCH: 0.12, FIGHTER: 0.08, TEAM: 0.18, LANE: 0.08, CLU: 0.10, ROAM: 0.08 },
+    macro:    { ROAM: 0.24, ENGAGE: 0.12, TEAM: 0.16, LANE: 0.10, MECH: 0.10, CLU: 0.12, TANK: 0.06, ENCH: 0.10 },
+    clutch:   { CLU: 0.30, MECH: 0.20, TEAM: 0.16, AP_ASN: 0.10, AD_ASN: 0.08, MARK: 0.10, FIGHTER: 0.06 },
     depth:    {},
   },
 

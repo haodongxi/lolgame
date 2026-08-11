@@ -137,7 +137,7 @@ async function main() {
   await evaljs("goToPlayoffs()");
   await sleep(200);
   for (let i = 0; i < 3; i++) {
-    await evaljs("simPlayoffRound()");
+    await evaljs("STATE._pendingStrategy = 'auto'; simPlayoffRound()");
     await sleep(250);
   }
   report.steps.playoffDone = await evaljs("STATE.season.playoffBracket && STATE.season.playoffBracket.done");

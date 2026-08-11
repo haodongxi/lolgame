@@ -4,9 +4,10 @@
    ============================================================ */
 
 // ==================== 游戏状态 ====================
-const SAVE_KEY = 'lol_career_save_v1';
+const SAVE_KEY = 'lol_career_save_v2';
 
 const STATE = {
+  saveKey: SAVE_KEY,
   mode: null,
   position: null,
   attrs: {},
@@ -23,6 +24,8 @@ const STATE = {
   selectedChamp: null,
   _locking: false,
   _pendingStrategy: null,
+  _draft: null,
+  _draftUserPick: null,
   finalOVR: 0,
   finalPosition: null,
   finalArchetype: null,
@@ -118,6 +121,162 @@ function getPosPenalty(userPos, srcPos, attrKey) {
   return Math.min(1.0, userAvg / srcAvg);
 }
 
+// ==================== 英雄池：发牌 / 禁选 / 战力 ====================
+function clsCN(cls) { return SIM_CONFIG.CLS_CN[cls] || cls; }
+function clsIcon(cls) { return SIM_CONFIG.CLS_ICON[cls] || '⭐'; }
+
+/** 个人能力分：按位置 OVR 权重对 5 项个人能力加权 */
+function getPersonalScore(attrs, pos) {
+  const w = SIM_CONFIG.OVR_WEIGHTS[pos] || {};
+  let s = 0, tw = 0;
+  SIM_CONFIG.PERSONAL_KEYS.forEach(function(k) {
+    const ww = w[k] || 0;
+    s += (parseInt(attrs[k]) || 50) * ww;
+    tw += ww;
+  });
+  return tw > 0 ? s / tw : 50;
+}
+
+/** 英雄适配分 = 类别精通 × 0.55 + 英雄基础强度 × 0.25 + 个人能力 × 0.20 */
+function heroFit(attrs, hero) {
+  if (!hero) return 50;
+  return (parseInt(attrs[hero.cls]) || 50) * 0.55 +
+    hero.str * 0.25 +
+    getPersonalScore(attrs, hero.pos) * 0.20;
+}
+
+/** 玩家的 Top3 精通类别（精通 × 位置权重，用于发牌保底） */
+function getUserTopClasses() {
+  const w = SIM_CONFIG.OVR_WEIGHTS[STATE.position] || {};
+  const list = SIM_CONFIG.MASTERY_KEYS.slice().sort(function(a, b) {
+    return (STATE.attrs[b] || 50) * (w[b] || 0) - (STATE.attrs[a] || 50) * (w[a] || 0);
+  });
+  return list.slice(0, 3);
+}
+
+/** 发牌：每位置从 10 个英雄里刷 6 个，随机禁用 1 个，剩余 5 个供双方选择 */
+function generateDraft() {
+  const draft = { heroes: {}, banned: {}, byId: {} };
+  SIM_CONFIG.POS_LIST.forEach(function(pos) {
+    const pool = shuffleArr(HERO_POOL[pos].slice());
+    let dealt = pool.slice(0, SIM_CONFIG.DRAFT.DEAL_PER_POS);
+    // 玩家保底：至少 2 个在场英雄属于玩家 Top3 精通类别，避免整场没英雄可玩
+    if (STATE.position && STATE.attrs) {
+      const top = getUserTopClasses();
+      const countTop = dealt.filter(function(h) { return top.indexOf(h.cls) >= 0; }).length;
+      if (countTop < 2) {
+        const cands = pool.filter(function(h) {
+          return dealt.indexOf(h) === -1 && top.indexOf(h.cls) >= 0;
+        });
+        const need = Math.min(2 - countTop, cands.length);
+        const replaceable = dealt.filter(function(h) { return top.indexOf(h.cls) === -1; });
+        for (let i = 0; i < need && i < replaceable.length; i++) {
+          const idx = dealt.indexOf(replaceable[i]);
+          if (idx >= 0) dealt[idx] = cands[i];
+        }
+      }
+    }
+    const banIdx = Math.floor(Math.random() * dealt.length);
+    const banned = dealt[banIdx];
+    draft.heroes[pos] = dealt.filter(function(h) { return h.id !== banned.id; });
+    draft.banned[pos] = banned;
+    dealt.forEach(function(h) { draft.byId[h.id] = h; });
+  });
+  return draft;
+}
+
+/** 自动选英雄：按 精通 × 强度 + 个人能力 取最高 */
+function autoPickHero(attrs, pos, draft) {
+  const list = draft.heroes[pos] || [];
+  if (list.length === 0) return null;
+  let best = list[0], bestScore = -Infinity;
+  list.forEach(function(h) {
+    const s = heroFit(attrs, h) + Math.random() * 0.5;
+    if (s > bestScore) { bestScore = s; best = h; }
+  });
+  return best;
+}
+
+function getPickedHero(team, player, draft, picks) {
+  if (!draft) return null;
+  const pickId = picks && picks[team] && picks[team][player.pos];
+  if (pickId && draft.byId[pickId]) return draft.byId[pickId];
+  return autoPickHero(player.attrs, player.pos, draft);
+}
+
+/** 计算双方 10 名选手本局选到的英雄 */
+function computePicks(draft) {
+  const picks = {};
+  SIM_CONFIG.TEAMS.forEach(function(team) {
+    picks[team] = {};
+    const lineup = calcTeamLineup(team);
+    const byPos = {};
+    lineup.starters.forEach(function(p) { byPos[p.pos] = p; });
+    SIM_CONFIG.POS_LIST.forEach(function(pos) {
+      const p = byPos[pos];
+      if (!p) return;
+      let hero = null;
+      if (p._isUser && STATE._draftUserPick &&
+          draft.heroes[pos].some(function(h) { return h.id === STATE._draftUserPick; })) {
+        hero = HERO_BY_ID[STATE._draftUserPick];
+      } else {
+        hero = autoPickHero(p.attrs, pos, draft);
+      }
+      picks[team][pos] = hero ? hero.id : null;
+    });
+  });
+  return picks;
+}
+
+/** 类别克制：A 克制 B 时返回 +4，B 克制 A 时返回 -4 */
+function laneCounterBonus(aCls, bCls) {
+  let d = 0;
+  const ca = SIM_CONFIG.CLS_COUNTER[aCls] || [];
+  const cb = SIM_CONFIG.CLS_COUNTER[bCls] || [];
+  if (ca.indexOf(bCls) >= 0) d += 4;
+  if (cb.indexOf(aCls) >= 0) d -= 4;
+  return d;
+}
+
+/** 逐线对位：双方同位置英雄战力 + 克制修正 */
+function computeLaneMatchups(teamA, teamB, draft, picks) {
+  const la = calcTeamLineup(teamA).starters;
+  const lb = calcTeamLineup(teamB).starters;
+  const byPosA = {}, byPosB = {};
+  la.forEach(function(p) { byPosA[p.pos] = p; });
+  lb.forEach(function(p) { byPosB[p.pos] = p; });
+  const matchups = [];
+  SIM_CONFIG.POS_LIST.forEach(function(pos) {
+    const pa = byPosA[pos], pb = byPosB[pos];
+    if (!pa || !pb) return;
+    const ha = getPickedHero(teamA, pa, draft, picks);
+    const hb = getPickedHero(teamB, pb, draft, picks);
+    const baseA = heroFit(pa.attrs, ha);
+    const baseB = heroFit(pb.attrs, hb);
+    const counter = laneCounterBonus(ha ? ha.cls : null, hb ? hb.cls : null);
+    matchups.push({
+      pos: pos,
+      heroA: ha, heroB: hb,
+      powerA: Math.round(baseA), powerB: Math.round(baseB),
+      counter: counter,
+      adv: Math.round((baseA + counter / 2) - (baseB - counter / 2)),
+    });
+  });
+  return matchups;
+}
+
+/** 本局英雄修正后的属性向量：把该英雄类别的精通与英雄强度融合 */
+function heroAdjustedAttrs(attrs, hero) {
+  const vec = {};
+  ATTR_KEYS.forEach(function(k) {
+    vec[k] = Math.max(25, Math.min(99, parseInt(attrs[k]) || 50));
+  });
+  if (hero) {
+    vec[hero.cls] = Math.max(25, Math.min(99, Math.round(0.45 * vec[hero.cls] + 0.55 * hero.str)));
+  }
+  return vec;
+}
+
 // ==================== 存档 ====================
 function saveGame() {
   try {
@@ -132,7 +291,11 @@ function loadGame() {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return false;
     const data = JSON.parse(raw);
-    if (!data || !data.gameId) return false;
+    if (!data || !data.gameId || data.saveKey !== SAVE_KEY) {
+      // 旧版本属性体系已重构，直接作废旧档
+      try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
+      return false;
+    }
     Object.keys(STATE).forEach(function(k) { delete STATE[k]; });
     Object.assign(STATE, data);
     return true;
@@ -144,6 +307,7 @@ function clearSave() {
 
 function initGame() {
   Object.assign(STATE, {
+    saveKey: SAVE_KEY,
     mode: null, position: null,
     attrs: {}, attrSlots: {}, lockedCount: 0,
     usedChamps: [], _mustLockAfterSpin: false,
@@ -151,6 +315,7 @@ function initGame() {
     _shownThisTeam: [], _rerollsLeft: 3, _teamsVisited: [],
     selectedChamp: null, _locking: false,
     _pendingStrategy: null,
+    _draft: null, _draftUserPick: null,
     finalOVR: 0, finalPosition: null, finalArchetype: null,
     similarChamps: [], careerTeam: null,
     gameId: Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8),
@@ -230,6 +395,9 @@ function normalizeState() {
   STATE._autoSimming = false;
   STATE._bulkSim = false;
   STATE._pendingStrategy = null;
+  if (STATE._draft === undefined) STATE._draft = null;
+  if (STATE._draftUserPick === undefined) STATE._draftUserPick = null;
+  if (STATE.saveKey === undefined) STATE.saveKey = SAVE_KEY;
   applyRosterOverrides();
   if (!STATE.position && STATE.finalPosition) STATE.position = STATE.finalPosition;
 }
@@ -237,12 +405,12 @@ function normalizeState() {
 // ==================== 玩法说明 ====================
 var _helpPage = 0;
 var _helpPages = [
-  { title: '建选手', content: '选择位置后随机抽战队，从队内选手身上锁定一项属性。跨位置选选手会触发属性衰减，集满 13 项属性后揭晓总评、模板和相似选手。每局限换 3 次选手。' },
-  { title: '常规赛', content: '14 支战队三循环共 39 轮，每轮 BO3 系列赛。逐轮模拟（每次赛前可选战术）或一键模拟到底，点赛程圆点可查看每局的击杀/经济/时长和关键事件。你的个人数据由属性决定：输出、爆发决定击杀，视野、游走决定助攻与视野分。' },
+  { title: '建选手', content: '选择位置后随机抽战队，从队内选手身上锁定一项能力。跨位置选选手会触发能力衰减，集满 13 项能力（8 类英雄精通 + 5 项个人能力）后揭晓总评、模板和相似选手。每局限换 3 次选手。英雄精通决定你能把哪类英雄玩好：坦克/战士/物理刺客/法术刺客/法师/射手/开团硬辅/保护软辅。' },
+  { title: '常规赛', content: '14 支战队三循环共 39 轮，每轮 BO3 系列赛。每场比赛每个位置都会从 50 个英雄池里随机刷出 6 个在场英雄、随机禁用 1 个，你从剩余英雄中选 1 个上场，AI 选手会按自己的精通自动选英雄。胜负由「英雄类别精通 × 英雄强度 + 个人能力」的对位比较决定。点赛程圆点可查看每局的击杀/经济/时长、关键事件和你的本场英雄。' },
   { title: '奖项', content: '常规赛结束后评选：MVP（顶级选手+战绩加权）、每个位置的最佳（最佳上单/打野/中单/射手/辅助，按各位置核心数据排名）、最佳新秀（按位置，首个赛季且带队进季后赛、数据达标、同位置排名前二）。' },
   { title: '季后赛', content: '前 6 名进入季后赛：第 1、2 名直通半决赛，第 3-6 名打四分之一决赛。全部 BO5，一路赢下去就是冠军+FMVP。' },
   { title: '突发事件', content: '赛季中会随机遇到突发事件：伤病、禁赛会让你缺席比赛；手感火热/低迷、版本更新、教练战术会临时改变你的属性；还有绝杀名场面、交易新闻、广告代言、恋情八卦、季后赛压力等几十种故事事件。事件会记录在赛季页的时间线里。' },
-  { title: '休赛期', content: '赛季结束后先进入转会窗口：各队会互换替补、官宣引援，你也有可能收到其他战队的报价（打得好更容易被豪门挖角），可以选择留队或转会。之后进入训练营：根据季后赛成绩、个人数据和荣誉获得训练点数，把点数分配到 13 项属性上养成选手。属性越高加点越贵，年轻时还有成长红利，年龄大了身体会自然下滑。' },
+  { title: '休赛期', content: '赛季结束后先进入转会窗口：各队会互换替补、官宣引援，你也有可能收到其他战队的报价（打得好更容易被豪门挖角），可以选择留队或转会。之后进入训练营：根据季后赛成绩、个人数据和荣誉获得训练点数，把点数分配到 13 项能力上养成选手。能力越高加点越贵，年轻时还有成长红利，年龄大了身体会自然下滑。' },
   { title: 'My Card', content: '赛季中随时可以打开 My Card 查看本赛季场均数据、季后赛数据、当前属性和生涯影响力（声望/人气/商业价值/年薪）。成就墙记录你达成的各种里程碑，荣誉墙按赛季汇总你的奖杯。' },
   { title: '退役', content: '16 岁开启职业生涯。25 岁起每个休赛期都会弹出退役抉择：可以再战一年，也可以正式退役；最晚 27 岁必须退役。退役时会生成生涯总结（赛季数、胜场、冠军、荣誉、生涯声望和最终评级），然后可以重开新档。' },
 ];
@@ -274,7 +442,7 @@ function renderModeSelect() {
   if (!container) return;
   container.innerHTML = '';
   const cards = [
-    { tag: 'CURRENT', tagClass: 'gold', title: '生涯模式', sub: '从 LPL 职业选手身上夺取属性，打造我的选手', btn: '🎮 进入生涯', mode: 'current' },
+    { tag: 'CURRENT', tagClass: 'gold', title: '生涯模式', sub: '继承职业选手的英雄精通，每局随机英雄池考验证英雄池深度', btn: '🎮 进入生涯', mode: 'current' },
     { tag: 'NEW', tagClass: 'new', title: '传奇模式', sub: '从历史传奇选手组建我的阵容', btn: '即将上线', mode: 'legend', disabled: true },
   ];
   cards.forEach(function(c) {
@@ -868,7 +1036,7 @@ function calcTeamLineup(team) {
   return { starters: starters, allPlayers: players };
 }
 
-function calcTeamPower(team) {
+function calcTeamPower(team, draft, picks) {
   const lineup = calcTeamLineup(team);
   const roster = lineup.starters;
   if (roster.length === 0) return { offense: 50, defense: 50, macro: 50, clutch: 50, overall: 50 };
@@ -878,20 +1046,22 @@ function calcTeamPower(team) {
     Object.keys(weights).forEach(function(attr) {
       const w = weights[attr];
       roster.forEach(function(p) {
-        sum += (parseInt(p.attrs[attr]) || 50) * w;
+        const hero = getPickedHero(team, p, draft, picks);
+        const vec = heroAdjustedAttrs(p.attrs, hero);
+        sum += vec[attr] * w;
         totalW += w;
       });
     });
     return totalW > 0 ? sum / totalW : 50;
   }
-  const overall = roster.reduce(function(s, p) { return s + (parseInt(p.ovr) || 50); }, 0) / roster.length;
-  return {
+  const dims = {
     offense: calcDim(cfg.offense),
     defense: calcDim(cfg.defense),
     macro: calcDim(cfg.macro),
     clutch: calcDim(cfg.clutch),
-    overall: overall,
   };
+  dims.overall = (dims.offense + dims.defense + dims.macro + dims.clutch) / 4;
+  return dims;
 }
 
 // 属性→效率系数：低属性几乎没用，高属性才有显著收益
@@ -903,8 +1073,17 @@ function af(val) { return Math.pow(attrFactor(val), 1.5); }
 
 // ==================== 8. 比赛模拟 ====================
 function simulateSeries(teamA, teamB, isPlayoff, strategy) {
-  const powerA = calcTeamPower(teamA);
-  const powerB = calcTeamPower(teamB);
+  // 每场系列赛发一次牌：双方共用同一批在场英雄
+  const draft = STATE._draft || generateDraft();
+  STATE._draft = draft;
+  const picks = computePicks(draft);
+  const powerA = calcTeamPower(teamA, draft, picks);
+  const powerB = calcTeamPower(teamB, draft, picks);
+  // 逐线对位克制修正：刺客克后排、坦克克刺客……
+  const laneMatchups = computeLaneMatchups(teamA, teamB, draft, picks);
+  let laneAdv = 0;
+  laneMatchups.forEach(function(m) { laneAdv += m.adv; });
+  const laneAdj = Math.max(-10, Math.min(10, laneAdv * 0.12));
   // 赛前战术：只影响我的队伍纸面实力
   if (strategy && strategy.id && (teamA === STATE.careerTeam || teamB === STATE.careerTeam)) {
     const mine = teamA === STATE.careerTeam ? powerA : powerB;
@@ -916,7 +1095,8 @@ function simulateSeries(teamA, teamB, isPlayoff, strategy) {
   const netRating = (powerA.offense - powerB.offense) * 0.35 +
     (powerA.defense - powerB.defense) * 0.25 +
     (powerA.macro - powerB.macro) * 0.25 +
-    (powerA.clutch - powerB.clutch) * 0.15;
+    (powerA.clutch - powerB.clutch) * 0.15 +
+    laneAdj;
   let winProb = 0.5 + netRating / 25;
   winProb = Math.max(0.18, Math.min(0.82, winProb));
   const bestOf = isPlayoff ? 5 : 3;
@@ -970,12 +1150,18 @@ function simulateSeries(teamA, teamB, isPlayoff, strategy) {
   const avgB = (powerB.offense + powerB.defense + powerB.macro) / 3;
   const upset = won !== (avgA > avgB) && Math.abs(avgA - avgB) > 3;
   const highlight = games.some(function(g) { return g.highlight; }) || upset;
+  // 本场发牌结果随赛果返回，下一场重新发牌
+  STATE._draft = null;
+  STATE._draftUserPick = null;
   return {
     won: won,
     winsA: winsA, winsB: winsB,
     games: games,
     score: winsA + '-' + winsB,
     powerA: powerA, powerB: powerB,
+    draft: draft,
+    picks: picks,
+    laneMatchups: laneMatchups,
     isPlayoff: !!isPlayoff,
     strategy: strategy || null,
     upset: !!upset,
@@ -991,18 +1177,22 @@ function generatePlayerStats(result, isPlayoff, strategy) {
   const gameCount = result.games.length;
   const totalKills = result.games.reduce(function(s, g) { return s + g.killsA; }, 0);
   const totalKillsB = result.games.reduce(function(s, g) { return s + g.killsB; }, 0);
-  const offAvg = af(((STATE.attrs.DPS || 50) + (STATE.attrs.BURST || 50) + (STATE.attrs.MECH || 50)) / 3);
+  // 本场英雄的类别精通：决定击杀/输出表现
+  const myHeroId = result && result.picks && result.picks[STATE.careerTeam] && result.picks[STATE.careerTeam][pos];
+  const myHero = myHeroId ? HERO_BY_ID[myHeroId] : null;
+  const mastery = myHero ? (STATE.attrs[myHero.cls] || 50) : 50;
+  const offAvg = af(mastery * 0.5 + (STATE.attrs.MECH || 50) * 0.3 + (STATE.attrs.LANE || 50) * 0.2);
   const winBoost = result.won ? 1.1 : 0.9;
   let kills = Math.round(totalKills * usage * (0.15 + offAvg * 0.85) * posScale.kills * winBoost);
-  const survivability = af(((STATE.attrs.TANK || 50) + (STATE.attrs.MOB || 50)) / 2);
+  const survivability = af(((STATE.attrs.TANK || 50) + (STATE.attrs.TEAM || 50)) / 2);
   let deaths = Math.max(1, Math.round((2.4 - survivability * 1.4) * posScale.deaths * (result.won ? 0.85 : 1.15) * gameCount));
-  const supportFactor = af(((STATE.attrs.ROAM || 50) + (STATE.attrs.CC || 50) + (STATE.attrs.TEAM || 50)) / 3);
+  const supportFactor = af(((STATE.attrs.ROAM || 50) + (STATE.attrs.TEAM || 50) + Math.max(STATE.attrs.ENGAGE || 50, STATE.attrs.ENCH || 50)) / 3);
   const assists = Math.round(totalKills * 1.1 * supportFactor * posScale.assists * winBoost);
-  const csPerGame = Math.round(190 + af(STATE.attrs.FARM || 50) * 130 + Math.random() * 40);
+  const csPerGame = Math.round(190 + af(STATE.attrs.LANE || 50) * 130 + Math.random() * 40);
   let cs = csPerGame * gameCount;
-  const dmgFactor = af((STATE.attrs.DPS || 50) * 0.7 + (STATE.attrs.BURST || 50) * 0.3);
+  const dmgFactor = af(mastery * 0.55 + (STATE.attrs.MECH || 50) * 0.45);
   let dmg = Math.round((5000 + dmgFactor * 9000) * (isPlayoff ? 1.2 : 1.0) * gameCount * winBoost);
-  const vision = Math.round((15 + af(STATE.attrs.VISION || 50) * 45) * posScale.vision * gameCount);
+  const vision = Math.round((15 + af((STATE.attrs.ROAM || 50) * 0.7 + (STATE.attrs.TEAM || 50) * 0.3) * 45) * posScale.vision * gameCount);
   if (strategy && strategy.id) {
     if (strategy.id === 'stable') { kills = Math.round(kills * 0.92); deaths = Math.max(1, Math.round(deaths * 0.82)); dmg = Math.round(dmg * 0.95); }
     else if (strategy.id === 'aggressive') { kills = Math.round(kills * 1.15); deaths = Math.round(deaths * 1.2); dmg = Math.round(dmg * 1.08); cs = Math.round(cs * 0.9); }
@@ -1070,13 +1260,13 @@ const EVENT_REGISTRY = [
       body: '换季降温，你半夜发起了高烧。队医直接把你摁在医院，禁止你上场。你裹着被子看比赛直播，弹幕全在刷“快好起来”。',
       _consequence: 'injury', _games: restGames,
       choices: [
-        { id: 'play', label: '💪 轻伤不下火线', desc: '强行上场，机动 -1，状态很差', _attrDelta: { key: 'MOB', delta: -1 } },
+        { id: 'play', label: '💪 轻伤不下火线', desc: '强行上场，操作 -1，状态很差', _attrDelta: { key: 'MECH', delta: -1 } },
         { id: 'rest', label: '🛌 好好休息', desc: '缺席 ' + restGames + ' 场，尽快恢复', _games: restGames }
       ] };
   } },
   // —— 版本类 ——
   { id: 'patch_buff', name: '版本加强', weight: 10, execute: function(ctx) {
-    const keys = ['DPS', 'MECH', 'BURST', 'SPLIT'];
+    const keys = ['MECH', 'LANE', 'AD_ASN', 'AP_ASN', 'MAGE', 'MARK', 'TANK', 'FIGHTER', 'ENGAGE', 'ENCH'];
     const k = keys[Math.floor(Math.random() * keys.length)];
     return { emoji: '🛠️', title: '版本更新：英雄加强', desc: '版本红利',
       body: '新版本更新公告里，你本命英雄的核心装备被加强。排位胜率一路走高，教练也给你安排了更多战术倾斜。',
@@ -1194,7 +1384,7 @@ const EVENT_REGISTRY = [
     return { emoji: '😵', title: '连续失眠状态下滑', desc: '作息崩了',
       body: '连续三晚失眠，白天训练哈欠连天，反应肉眼可见地变慢。队医给你开了褪黑素，经理让你少刷点手机。',
       choices: [
-        { id: 'doctor', label: '🩺 遵医嘱调整作息', desc: '早点睡，恢复机动 +1', _attrDelta: { key: 'MOB', delta: 1 } },
+        { id: 'doctor', label: '🩺 遵医嘱调整作息', desc: '早点睡，恢复操作 +1', _attrDelta: { key: 'MECH', delta: 1 } },
         { id: 'push', label: '☕ 咖啡硬扛', desc: '白天硬撑，操作 -1', _attrDelta: { key: 'MECH', delta: -1 } }
       ] };
   } },
@@ -1282,7 +1472,7 @@ const EVENT_REGISTRY = [
       body: '五局大战打到决胜局，你的手已经开始发酸。你灌了一口水，看了一眼教练：相信我，最后一局。',
       choices: [
         { id: 'rest', label: '💆 抓紧休息', desc: '平复心率，稳住状态' },
-        { id: 'film', label: '🎥 熬夜研究对手', desc: '摸透套路更好打，但机动 -1', _attrDelta: { key: 'MOB', delta: -1 } }
+        { id: 'film', label: '🎥 熬夜研究对手', desc: '摸透套路更好打，但操作 -1', _attrDelta: { key: 'MECH', delta: -1 } }
       ],
       condition: function() { return !!(STATE.season && STATE.season.isPlayoffs); } }; } },
   { id: 'po_spotlight', name: '聚光灯下爆发', weight: 6, execute: function(ctx) {
@@ -1404,7 +1594,7 @@ function renderEventTimeline() {
         '</div></div>';
     }).join('') + '</div>';
   }
-  box.innerHTML = html;
+  if (box) box.innerHTML = html;
 }
 
 function showEventModal(data, callback) {
@@ -1477,7 +1667,12 @@ const STRATEGY_LABELS = { stable: '🛡️ 稳健运营', aggressive: '⚔️ �
 
 function showStrategyModal(match, callback) {
   const modal = document.getElementById('strategy-modal');
-  if (!modal) { if (callback) callback('auto'); return; }
+  if (!modal) {
+    // 无弹窗环境（自动化/测试）：直接采用自动战术，避免回调死循环
+    STATE._pendingStrategy = STATE._pendingStrategy || 'auto';
+    if (callback) callback(STATE._pendingStrategy);
+    return;
+  }
   const sub = document.getElementById('strategy-modal-sub');
   if (sub) {
     if (match) {
@@ -1499,6 +1694,60 @@ function chooseStrategy(id) {
   window._strategyCallback = null;
   STATE._pendingStrategy = id || 'auto';
   if (cb) cb(STATE._pendingStrategy);
+}
+
+// ==================== 8.7 赛前选英雄（本场发牌） ====================
+function showDraftModal(match, callback) {
+  const draft = STATE._draft || generateDraft();
+  STATE._draft = draft;
+  const modal = document.getElementById('draft-modal');
+  if (!modal) { STATE._draftUserPick = null; if (callback) callback(); return; }
+  const sub = document.getElementById('draft-modal-sub');
+  if (sub) {
+    let oppText = '';
+    if (match) {
+      const opp = match.home === STATE.careerTeam ? match.away : match.home;
+      oppText = '对手：' + getTeamName(opp) + ' · 第 ' + match.round + ' 轮 · BO3';
+    } else {
+      oppText = '季后赛关键战 · BO5';
+    }
+    sub.textContent = oppText + ' · 本场已随机禁用 1 个英雄';
+  }
+  const banned = document.getElementById('draft-banned');
+  const bannedHero = draft.banned[STATE.position];
+  if (banned) {
+    banned.textContent = '🚫 本场被禁：' + (bannedHero ? bannedHero.cn + '（' + clsCN(bannedHero.cls) + '）' : '—');
+  }
+  const list = document.getElementById('draft-hero-list');
+  if (list) {
+    let html = '';
+    draft.heroes[STATE.position].forEach(function(h) {
+      const mastery = STATE.attrs[h.cls] || 50;
+      const g = getGrade(mastery);
+      const fit = Math.round(heroFit(STATE.attrs, h));
+      html += '<div class="draft-hero" onclick="chooseDraftHero(\'' + h.id + '\')">' +
+        '<div class="dh-icon">' + clsIcon(h.cls) + '</div>' +
+        '<div class="dh-body"><div class="dh-name">' + h.cn + '</div>' +
+        '<div class="dh-cls">' + clsCN(h.cls) + ' · 强度 ' + h.str + '</div></div>' +
+        '<div class="dh-fit">精通 <b style="color:' + g.color + '">' + g.letter + '</b> · 适配 ' + fit + '</div></div>';
+    });
+    html += '<div class="draft-hero dh-auto" onclick="chooseDraftHero(\'\')">' +
+      '<div class="dh-icon">🤖</div><div class="dh-body"><div class="dh-name">自动选择</div>' +
+      '<div class="dh-cls">按精通 × 强度 + 个人能力取最优</div></div></div>';
+    list.innerHTML = html;
+  }
+  window._draftCallback = callback || null;
+  modal.classList.add('active');
+  modal.style.display = 'flex';
+}
+
+function chooseDraftHero(id) {
+  const modal = document.getElementById('draft-modal');
+  if (modal) { modal.classList.remove('active'); modal.style.display = 'none'; }
+  STATE._draftUserPick = id || null;
+  const cb = window._draftCallback;
+  window._draftCallback = null;
+  if (cb) cb();
 }
 
 // ==================== 9. 常规赛 ====================
@@ -1656,7 +1905,12 @@ function simNextRound() {
   if (!m) { endRegularSeason(); return; }
   // 我的比赛：赛前先选战术
   if (m.isMine) {
-    showStrategyModal(m, function() { simRound(m.round); });
+    showStrategyModal(m, function() {
+      // 再选本场英雄（发牌已在弹窗内生成），自动模拟时跳过选英雄
+      if (STATE._bulkSim) { simRound(m.round); return; }
+      STATE._draft = null;
+      showDraftModal(m, function() { simRound(m.round); });
+    });
     return;
   }
   simRound(m.round);
@@ -1741,12 +1995,14 @@ function calcPositionScore(stats, games, pos, wins, losses) {
 function estimatePlayerStats(p) {
   const pos = getMainPos(p);
   const ovr = parseInt(p.ovr) || 50;
-  const off = af((parseInt(p.DPS) || 50) * 0.7 + (parseInt(p.BURST) || 50) * 0.3);
+  const off = af((parseInt(p.MARK) || 50) * 0.30 + (parseInt(p.MAGE) || 50) * 0.20 +
+    (parseInt(p.AD_ASN) || 50) * 0.15 + (parseInt(p.AP_ASN) || 50) * 0.15 + (parseInt(p.MECH) || 50) * 0.20);
   const kills = 2.0 + off * 3.5;
-  const deaths = 2.6 - af((parseInt(p.TANK) || 50) + (parseInt(p.MOB) || 50)) * 0.8;
-  const assists = 2.0 + af((parseInt(p.ROAM) || 50) + (parseInt(p.CC) || 50)) * 3.0;
-  const dmg = 5000 + af((parseInt(p.DPS) || 50)) * 9000;
-  const cs = Math.round(180 + af((parseInt(p.FARM) || 50)) * 140 + Math.random() * 30);
+  const deaths = 2.6 - af((parseInt(p.TANK) || 50) * 0.5 + (parseInt(p.TEAM) || 50) * 0.5) * 0.8;
+  const assists = 2.0 + af((parseInt(p.ROAM) || 50) * 0.4 + (parseInt(p.ENGAGE) || 50) * 0.3 + (parseInt(p.ENCH) || 50) * 0.3) * 3.0;
+  const dmg = 5000 + af((parseInt(p.MARK) || 50) * 0.3 + (parseInt(p.MAGE) || 50) * 0.25 +
+    (parseInt(p.MECH) || 50) * 0.25 + (parseInt(p.AD_ASN) || 50) * 0.1 + (parseInt(p.AP_ASN) || 50) * 0.1) * 9000;
+  const cs = Math.round(180 + af((parseInt(p.LANE) || 50)) * 140 + Math.random() * 30);
   return { kills: kills, deaths: Math.max(1, deaths), assists: assists, cs: cs, dmg: dmg, ovr: ovr, pos: pos };
 }
 
@@ -1958,7 +2214,19 @@ function showSeriesDetail(roundNum) {
     const awayName = getTeamName(g.away);
     const winnerName = r.won ? homeName : awayName;
     const loserName = r.won ? awayName : homeName;
-    html = '<div class="sd-scoreline">' + winnerName + ' <b>' + r.score + '</b> ' + loserName + '</div>';
+    const scoreShown = r.won ? r.score : r.score.split('-').reverse().join('-');
+    html = '<div class="sd-scoreline">' + winnerName + ' <b>' + scoreShown + '</b> ' + loserName + '</div>';
+    if (r.draft) {
+      const oppTeam = g.home === myTeam ? g.away : g.home;
+      const myHeroId = r.picks && r.picks[myTeam] && r.picks[myTeam][STATE.position];
+      const oppHeroId = r.picks && r.picks[oppTeam] && r.picks[oppTeam][STATE.position];
+      const myHero = myHeroId ? HERO_BY_ID[myHeroId] : null;
+      const oppHero = oppHeroId ? HERO_BY_ID[oppHeroId] : null;
+      const bannedHero = r.draft.banned[STATE.position];
+      html += '<div class="sd-draft">🎯 我的英雄：' + (myHero ? myHero.cn + '（' + clsCN(myHero.cls) + '）' : '—') +
+        ' vs 对位：' + (oppHero ? oppHero.cn + '（' + clsCN(oppHero.cls) + '）' : '—') +
+        (bannedHero ? ' · 🚫 被禁 ' + bannedHero.cn : '') + '</div>';
+    }
     if (r.upset) html += '<div class="ev-conseq">💥 爆冷！</div>';
     html += '<div class="sd-games">';
     (r.games || []).forEach(function(gg, i) {
@@ -2120,7 +2388,7 @@ function renderPlayoffBracket() {
   if (br.done) {
     if (detail) detail.innerHTML = renderMyPlayoffSeries();
   }
-  box.innerHTML = html;
+  if (box) box.innerHTML = html;
 }
 
 function renderMyPlayoffSeries() {
@@ -2131,9 +2399,12 @@ function renderMyPlayoffSeries() {
   let html = '';
   mySeries.forEach(function(m, i) {
     const won = m.result.won === (m.a === STATE.careerTeam);
+    const myHeroId = m.result.picks && m.result.picks[STATE.careerTeam] && m.result.picks[STATE.careerTeam][STATE.position];
+    const myHero = myHeroId ? HERO_BY_ID[myHeroId] : null;
     html += '<div class="sec-card">' +
       '<div class="po-round-title">' + (i === 0 ? '四分之一决赛' : i === 1 ? '半决赛' : '总决赛') + (won ? ' ✅' : ' ❌') + '</div>' +
       '<div class="po-result">' + getTeamName(m.a) + ' ' + m.result.score + ' ' + getTeamName(m.b) + '</div>' +
+      (myHero ? '<div class="po-hero">🎯 我的英雄：' + myHero.cn + '（' + clsCN(myHero.cls) + '）</div>' : '') +
       '<div class="po-games">' + m.result.games.map(function(g) { return '<span class="po-game' + (g.aWon ? ' won' : '') + '">' + (m.a === STATE.careerTeam ? (g.aWon ? '胜' : '负') : (g.aWon ? '负' : '胜')) + '</span>'; }).join('') + '</div>' +
       '<div class="po-stats">' + (m.stats ? '我的数据：' + m.stats.kills + '杀 ' + m.stats.deaths + '死 ' + m.stats.assists + '助 · CS ' + m.stats.cs + ' · 伤害 ' + Math.round(m.stats.dmg / 1000) + 'k' : '') + '</div></div>';
   });
@@ -2145,7 +2416,10 @@ function simPlayoffRound() {
   if (!br || br.done) return;
   // 季后赛关键战：先选战术再打
   if (!STATE._pendingStrategy && hasPendingMyPlayoffMatch(br)) {
-    showStrategyModal(null, function() { simPlayoffRound(); });
+    showStrategyModal(null, function() {
+      STATE._draft = null;
+      showDraftModal(null, function() { simPlayoffRound(); });
+    });
     return;
   }
   const strategy = STATE._pendingStrategy || null;
@@ -2329,9 +2603,9 @@ function applyAnnualAttributeDrift() {
   if (c.annualChangeSeason === seasonKey) return c.lastAnnualChanges || [];
   const age = c.currentAge || 18;
   const changes = [];
-  const fastDecline = ['TANK', 'MOB', 'SPLIT'];
-  const midDecline = ['DPS', 'BURST', 'LANE'];
-  const slowTech = ['TEAM', 'CC', 'VISION', 'ROAM', 'CLU'];
+  const fastDecline = ['TANK', 'FIGHTER', 'AD_ASN'];
+  const midDecline = ['MECH', 'LANE', 'AP_ASN', 'MAGE'];
+  const slowTech = ['TEAM', 'ROAM', 'CLU', 'ENGAGE', 'ENCH', 'MARK'];
   function applyList(list, minDelta, maxDelta, label) {
     list.forEach(function(k) {
       const delta = minDelta + Math.floor(Math.random() * (maxDelta - minDelta + 1));
@@ -3126,5 +3400,5 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { STATE, SIM_CONFIG, PLAYERS, buildLoLSchedule, getTeamPlayers, calcTeamPower, simulateSeries, generatePlayerStats, calcAwards, initPlayoffs, simPlayoffRound, createFreshSeason, createFreshCareer, initStandings };
+  module.exports = { STATE, SIM_CONFIG, PLAYERS, HEROES, HERO_POOL, HERO_BY_ID, buildLoLSchedule, getTeamPlayers, calcTeamPower, simulateSeries, generatePlayerStats, calcAwards, initPlayoffs, simPlayoffRound, createFreshSeason, createFreshCareer, initStandings, generateDraft, computePicks, heroFit, getPersonalScore };
 }

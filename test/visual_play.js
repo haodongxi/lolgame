@@ -130,7 +130,7 @@ async function main() {
   await evaljs("goToPlayoffs()");
   await sleep(250);
   await shot('playoffs');
-  for (let i = 0; i < 3; i++) { await evaljs("simPlayoffRound()"); await sleep(250); }
+  for (let i = 0; i < 3; i++) { await evaljs("STATE._pendingStrategy = 'auto'; simPlayoffRound()"); await sleep(250); }
   await shot('playoffs-done');
   await evaljs("showSeasonResult()");
   await sleep(250);

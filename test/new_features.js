@@ -58,7 +58,7 @@ async function main() {
     STATE.position = 'MID';
     STATE.finalOVR = 80;
     STATE.careerTeam = 'TES';
-    ['LANE','MECH','TEAM','DPS','BURST','TANK','CC','ROAM','VISION','FARM','MOB','CLU','SPLIT'].forEach(function(k){ STATE.attrs[k] = 80; });
+    ['TANK','FIGHTER','AD_ASN','AP_ASN','MAGE','MARK','ENGAGE','ENCH','LANE','MECH','TEAM','ROAM','CLU'].forEach(function(k){ STATE.attrs[k] = 80; });
     STATE.career.seasonCount = 0;
     STATE.career.currentAge = 18;
     return 'ok';
@@ -110,7 +110,7 @@ async function main() {
   // 7. 季后赛
   await evaljs("goToPlayoffs()");
   await sleep(200);
-  for (let i = 0; i < 3; i++) { await evaljs("simPlayoffRound()"); await sleep(300); }
+  for (let i = 0; i < 3; i++) { await evaljs("STATE._pendingStrategy = 'auto'; simPlayoffRound()"); await sleep(300); }
   // 关闭可能弹出的事件弹窗
   await evaljs("if (document.getElementById('event-modal').classList.contains('active')) closeEventModal();");
   await sleep(150);
@@ -125,14 +125,14 @@ async function main() {
   out.training = await evaljs("({ screen: document.getElementById('screen-training').classList.contains('active'), pointsText: document.getElementById('tp-points').textContent, breakdown: STATE._offseasonDrift || [], rows: document.querySelectorAll('.tp-row').length })");
   await shot('training-camp');
 
-  // 9. 加点：DPS +3、FARM +2，然后确认
-  await evaljs("addTrainingPoint('DPS'); addTrainingPoint('DPS'); addTrainingPoint('DPS'); addTrainingPoint('FARM'); addTrainingPoint('FARM');");
+  // 9. 加点：MECH +3、LANE +2，然后确认
+  await evaljs("addTrainingPoint('MECH'); addTrainingPoint('MECH'); addTrainingPoint('MECH'); addTrainingPoint('LANE'); addTrainingPoint('LANE');");
   await sleep(150);
-  out.afterAdd = await evaljs("({ pending: STATE._tpPending, dps: STATE.attrs.DPS, farm: STATE.attrs.FARM })");
+  out.afterAdd = await evaljs("({ pending: STATE._tpPending, mech: STATE.attrs.MECH, lane: STATE.attrs.LANE })");
   await shot('training-added');
   await evaljs("confirmTraining()");
   await sleep(400);
-  out.nextSeason = await evaljs("({ season: STATE.career.seasonCount, age: STATE.career.currentAge, dps: STATE.attrs.DPS, farm: STATE.attrs.FARM, screen: document.querySelector('.screen.active') ? document.querySelector('.screen.active').id : null })");
+  out.nextSeason = await evaljs("({ season: STATE.career.seasonCount, age: STATE.career.currentAge, mech: STATE.attrs.MECH, lane: STATE.attrs.LANE, screen: document.querySelector('.screen.active') ? document.querySelector('.screen.active').id : null })");
 
   out.exceptions = exceptions;
   out.consoleErrors = consoleErrors.slice(0, 10);
